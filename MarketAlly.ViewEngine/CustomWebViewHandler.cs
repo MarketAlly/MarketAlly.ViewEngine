@@ -12,6 +12,15 @@ namespace MarketAlly.ViewEngine
 	{
 		public CustomWebViewHandler() : base(Mapper) { }
 
+		public event EventHandler<PageData> PageDataChanged;
+
+		// Method to trigger the event
+		public async Task OnPageDataChangedAsync()
+		{
+			var pageData = await GetPageDataAsync();
+			PageDataChanged?.Invoke(this, pageData);
+		}
+
 		public static new IPropertyMapper<CustomWebView, CustomWebViewHandler> Mapper =
 			new PropertyMapper<CustomWebView, CustomWebViewHandler>(WebViewHandler.Mapper)
 			{
@@ -48,6 +57,23 @@ namespace MarketAlly.ViewEngine
 				return "Failed to decode HTML content.";
 			}
 		}
+
+		// Method to inject JavaScript into WebView
+		public partial Task InjectJavaScriptAsync(string script);
+
+		// Method to inject JavaScript that listens for URL changes
+		public async Task InjectLocationChangeListener()
+		{
+			var script = @"
+                (function() {
+                    window.addEventListener('locationchange', function() {
+                        window.external.notify('LocationChanged');
+                    });
+                })();
+            ";
+			await InjectJavaScriptAsync(script);
+		}
+
 	}
 
 	/// <summary>

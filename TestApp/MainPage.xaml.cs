@@ -25,21 +25,15 @@ namespace TestApp
 
 				webView.Source = enteredUrl;
 			}
-
-
 		}
 
-		private async void webView_Navigated(object sender, WebNavigatedEventArgs e)
+		private void webView_PageDataChanged(object sender, PageData e)
 		{
-			var pageData = await webView.GetPageDataAsync();
-
-			titleEntry.Text = pageData.Title;
-			bodyEntry.Text = pageData.Body;
-			Console.WriteLine($"Title: {pageData.Title}");
-			Console.WriteLine($"Meta Description: {pageData.MetaDescription}");
-			Console.WriteLine($"Body: {pageData.Body}");
-
-			
+			MainThread.BeginInvokeOnMainThread(() =>
+			{
+				titleEntry.Text = e.Title;
+				bodyEntry.Text = e.Body;
+			});
 		}
 	}
 

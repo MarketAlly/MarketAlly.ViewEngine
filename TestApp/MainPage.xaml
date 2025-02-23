@@ -16,7 +16,7 @@
         <Entry x:Name="urlEntry" Grid.Row="0" Placeholder="Enter URL" ReturnType="Go" Keyboard="Url" Completed="urlEntry_Completed" />
         <local:CustomWebView x:Name="webView"
                              Grid.Row="1"
-                             Navigated="webView_Navigated"
+                             PageDataChanged="webView_PageDataChanged"
                              Source="https://www.w3schools.com/tags/tryit.asp?filename=tryhtml5_a_target"
                              UserAgent="Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36" />
 

@@ -11,18 +11,132 @@ namespace MarketAlly.ViewEngine
 		{
 			base.ConnectHandler(platformView);
 
-			if (platformView.CoreWebView2 == null)
+			try
 			{
-				// Wait for CoreWebView2 Initialization
-				await platformView.EnsureCoreWebView2Async();
+				if (platformView.CoreWebView2 == null)
+				{
+					await platformView.EnsureCoreWebView2Async();
+				}
+				// Now it's safe to attach event handlers
+				platformView.CoreWebView2.NewWindowRequested += OnNewWindowRequested;
+				platformView.CoreWebView2.DownloadStarting += OnDownloadStarting;
+
+				// Track the last URL to detect changes
+				string lastUrl = string.Empty;
+
+				// Monitor source URL changes
+				platformView.CoreWebView2.SourceChanged += async (sender, args) =>
+				{
+					var currentUrl = platformView.CoreWebView2.Source;
+					Console.WriteLine($"Source changed to: {currentUrl}");
+
+					if (currentUrl != lastUrl)
+					{
+						lastUrl = currentUrl;
+						Console.WriteLine("URL changed, updating page data...");
+
+						// Give the page a moment to update its content
+						await Task.Delay(500);
+						await OnPageDataChangedAsync();
+					}
+				};
+
+				// Setup message handler for content changes
+				platformView.CoreWebView2.WebMessageReceived += async (sender, args) =>
+				{
+					Console.WriteLine($"Received content change message");
+					await OnPageDataChangedAsync();
+				};
+
+				// Inject the content monitoring script
+				await platformView.CoreWebView2.ExecuteScriptAsync(@"
+            (function() {
+                function notifyContentChange() {
+                    chrome.webview.postMessage('contentChanged');
+                }
+
+                // Monitor DOM changes
+                const observer = new MutationObserver((mutations) => {
+                    // Look for significant changes
+                    const hasSignificantChanges = mutations.some(mutation => 
+                        mutation.addedNodes.length > 0 || 
+                        mutation.removedNodes.length > 0 ||
+                        (mutation.target.id && (
+                            mutation.target.id.includes('content') ||
+                            mutation.target.id.includes('main') ||
+                            mutation.target.id.includes('root')
+                        ))
+                    );
+
+                    if (hasSignificantChanges) {
+                        notifyContentChange();
+                    }
+                });
+
+                observer.observe(document.body, {
+                    childList: true,
+                    subtree: true,
+                    attributes: true
+                });
+
+                // Monitor clicks
+                document.addEventListener('click', () => {
+                    setTimeout(notifyContentChange, 500);
+                }, true);
+            })();
+        ");
+
+				// Still keep navigation events
+				platformView.CoreWebView2.NavigationStarting += (sender, args) =>
+				{
+					Console.WriteLine($"Navigation Started: {args.Uri}");
+				};
+
+				platformView.CoreWebView2.NavigationCompleted += async (sender, args) =>
+				{
+					Console.WriteLine($"Navigation Completed: {sender.Source}");
+					await OnPageDataChangedAsync();
+				};
+
+				// Set the User-Agent
+				SetUserAgent(VirtualView?.UserAgent);
 			}
+			catch (Exception ex)
+			{
+				Console.WriteLine($"Error in ConnectHandler: {ex}");
+			}
+		}
 
-			// Now it's safe to attach event handlers
-			platformView.CoreWebView2.NewWindowRequested += OnNewWindowRequested;
-			platformView.CoreWebView2.DownloadStarting += OnDownloadStarting;
+		public async Task ForcePageDataUpdate()
+		{
+			try
+			{
+				Console.WriteLine("Manually triggering page data update...");
+				if (PlatformView?.CoreWebView2 != null)
+				{
+					await PlatformView.CoreWebView2.ExecuteScriptAsync(@"
+                console.log('Manual update triggered');
+                chrome.webview.postMessage(JSON.stringify({
+                    type: 'contentChanged',
+                    url: window.location.href,
+                    trigger: 'manual'
+                }));
+            ");
+				}
+				else
+				{
+					Console.WriteLine("CoreWebView2 not available");
+				}
+			}
+			catch (Exception ex)
+			{
+				Console.WriteLine($"Error in ForcePageDataUpdate: {ex}");
+			}
+		}
 
-			// Now that CoreWebView2 is available, set the User-Agent
-			SetUserAgent(VirtualView?.UserAgent);
+		public partial async Task InjectJavaScriptAsync(string script)
+		{
+			await PlatformView.CoreWebView2.ExecuteScriptAsync(script);
 		}
 
 		private void OnNewWindowRequested(CoreWebView2 sender, CoreWebView2NewWindowRequestedEventArgs args)

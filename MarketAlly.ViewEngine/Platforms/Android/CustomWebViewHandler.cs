@@ -19,9 +19,112 @@ namespace MarketAlly.ViewEngine
 			CookieManager.Instance.SetAcceptCookie(true);
 			CookieManager.Instance.SetAcceptThirdPartyCookies(platformView, true);
 
-			// Handle new tab navigation and downloads
-			platformView.SetWebViewClient(new CustomWebViewClient());
+			// Track the last URL
+			string lastUrl = string.Empty;
+
+			// Create a custom WebViewClient to monitor URL changes
+			platformView.SetWebViewClient(new CustomWebViewClient(this, (url) =>
+			{
+				if (url != lastUrl)
+				{
+					lastUrl = url;
+					MainThread.BeginInvokeOnMainThread(async () =>
+					{
+						await Task.Delay(500); // Give content time to update
+						await OnPageDataChangedAsync();
+					});
+				}
+			}));
+
+			// Handle downloads
 			platformView.SetDownloadListener(new CustomDownloadListener());
+
+			// Inject the content monitoring script
+			platformView.EvaluateJavascript(@"
+        (function() {
+            function notifyContentChange() {
+                if (window.Android) {
+                    window.Android.onContentChanged();
+                }
+            }
+
+            // Monitor DOM changes
+            const observer = new MutationObserver((mutations) => {
+                const hasSignificantChanges = mutations.some(mutation => 
+                    mutation.addedNodes.length > 0 || 
+                    mutation.removedNodes.length > 0 ||
+                    (mutation.target.id && (
+                        mutation.target.id.includes('content') ||
+                        mutation.target.id.includes('main') ||
+                        mutation.target.id.includes('root')
+                    ))
+                );
+
+                if (hasSignificantChanges) {
+                    notifyContentChange();
+                }
+            });
+
+            observer.observe(document.body, {
+                childList: true,
+                subtree: true,
+                attributes: true
+            });
+
+            // Monitor clicks
+            document.addEventListener('click', () => {
+                setTimeout(notifyContentChange, 500);
+            }, true);
+        })();
+    ", null);
+
+			// Add JavaScript interface for content change notifications
+			platformView.AddJavascriptInterface(new WebViewJavaScriptInterface(this), "Android");
+		}
+
+		public class CustomWebViewClient : WebViewClient
+		{
+			private readonly CustomWebViewHandler _handler;
+			private readonly Action<string> _onUrlChanged;
+
+			public CustomWebViewClient(CustomWebViewHandler handler, Action<string> onUrlChanged)
+			{
+				_handler = handler;
+				_onUrlChanged = onUrlChanged;
+			}
+
+			public override void OnPageFinished(Android.Webkit.WebView view, string url)
+			{
+				base.OnPageFinished(view, url);
+				_onUrlChanged(url);
+			}
+
+			public override void DoUpdateVisitedHistory(Android.Webkit.WebView view, string url, bool isReload)
+			{
+				base.DoUpdateVisitedHistory(view, url, isReload);
+				_onUrlChanged(url);
+			}
+		}
+
+		public class WebViewJavaScriptInterface : Java.Lang.Object
+		{
+			private readonly CustomWebViewHandler _handler;
+
+			public WebViewJavaScriptInterface(CustomWebViewHandler handler)
+			{
+				_handler = handler;
+			}
+
+			[Android.Webkit.JavascriptInterface]
+			public async void OnContentChanged()
+			{
+				await _handler.OnPageDataChangedAsync();
+			}
+		}
+
+		public partial async Task InjectJavaScriptAsync(string script)
+		{
+			PlatformView.EvaluateJavascript(script, null);
 		}
 
 		public void SetUserAgent(string userAgent)
@@ -94,6 +197,22 @@ namespace MarketAlly.ViewEngine
 		}
 	}
 
+	public class WebViewJavaScriptInterface : Java.Lang.Object
+	{
+		private readonly CustomWebViewHandler _handler;
+
+		public WebViewJavaScriptInterface(CustomWebViewHandler handler)
+		{
+			_handler = handler;
+		}
+
+		[Android.Webkit.JavascriptInterface]
+		public async void OnContentChange()
+		{
+			await _handler.OnPageDataChangedAsync();
+		}
+	}
+
 	class ValueCallback : Java.Lang.Object, IValueCallback
 	{
 		private TaskCompletionSource<string> _tcs;
@@ -111,6 +230,20 @@ namespace MarketAlly.ViewEngine
 
 	public class CustomWebViewClient : WebViewClient
 	{
+		private readonly CustomWebViewHandler _handler;
+
+		public CustomWebViewClient(CustomWebViewHandler handler)
+		{
+			_handler = handler;
+		}
+
+		public override async void OnPageFinished(Android.Webkit.WebView view, string url)
+		{
+			base.OnPageFinished(view, url);
+			Console.WriteLine($"Navigated to: {url}");
+			await _handler.OnPageDataChangedAsync();
+		}
+
 		public override bool ShouldOverrideUrlLoading(Android.Webkit.WebView view, IWebResourceRequest request)
 		{
 			view.LoadUrl(request.Url.ToString());
