@@ -32,6 +32,7 @@
 
 	<ItemGroup>
 		<PackageReference Include="Microsoft.Maui.Controls" Version="$(MauiVersion)" />
+    <PackageReference Include="itext7" Version="8.0.2" />
 	</ItemGroup>
 
 </Project>

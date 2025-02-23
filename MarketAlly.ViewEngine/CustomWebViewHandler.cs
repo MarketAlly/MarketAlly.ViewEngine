@@ -1,4 +1,7 @@
-﻿using Microsoft.Maui.Handlers;
+﻿using iText.Kernel.Pdf;
+using iText.Kernel.Pdf.Canvas.Parser;
+using iText.Kernel.Pdf.Canvas.Parser.Listener;
+using Microsoft.Maui.Handlers;
 using System;
 using System.Collections.Generic;
 using System.Linq;
@@ -74,6 +77,37 @@ namespace MarketAlly.ViewEngine
 			await InjectJavaScriptAsync(script);
 		}
 
+		public async Task HandlePdfDownload(byte[] pdfData, string url)
+		{
+			try
+			{
+				using (var stream = new MemoryStream(pdfData))
+				using (var pdfReader = new PdfReader(stream))
+				using (var pdfDocument = new PdfDocument(pdfReader))
+				{
+					var text = new StringBuilder();
+					for (int i = 1; i <= pdfDocument.GetNumberOfPages(); i++)
+					{
+						var page = pdfDocument.GetPage(i);
+						text.Append(PdfTextExtractor.GetTextFromPage(page, new LocationTextExtractionStrategy()));
+					}
+
+					var pageData = new PageData
+					{
+						Title = "PDF Document",
+						Body = text.ToString(),
+						Url = url,
+						MetaDescription = $"PDF document with {pdfDocument.GetNumberOfPages()} pages"
+					};
+
+					PageDataChanged?.Invoke(this, pageData);
+				}
+			}
+			catch (Exception ex)
+			{
+				Console.WriteLine($"Error processing PDF: {ex.Message}");
+			}
+		}
 	}
 
 	/// <summary>
@@ -84,10 +118,36 @@ namespace MarketAlly.ViewEngine
 		public string Title { get; set; }
 		public string Body { get; set; }
 		public string MetaDescription { get; set; }
+		public string Url { get; set; }  // New URL property
 	}
 	public class PageRawData
 	{
 		public string Title { get; set; }
 		public string Html { get; set; }
+		public string Url { get; set; }  // New URL property
+	}
+
+	// JavaScript for extracting page data (to be used in all platforms)
+	public static class PageDataExtractor
+	{
+		public static string ExtractScript = @"
+            (function() {
+                function toBase64(str) {
+                    try {
+                        return btoa(unescape(encodeURIComponent(str)));
+                    } catch (e) {
+                        return 'ERROR_ENCODING';
+                    }
+                }
+                
+                let pageData = {
+                    title: document.title || '',
+                    html: toBase64(document.documentElement.outerHTML || ''),
+                    url: window.location.href
+                };
+
+                console.log('Extracted JSON:', JSON.stringify(pageData));
+                return JSON.stringify(pageData);
+            })();";
 	}
 }

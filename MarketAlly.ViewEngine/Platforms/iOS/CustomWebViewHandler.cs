@@ -98,7 +98,27 @@ namespace MarketAlly.ViewEngine
 			{
 				var url = navigationAction.Request.Url.AbsoluteString;
 
-				if (url.StartsWith("blob:") || url.EndsWith(".pdf") || url.EndsWith(".zip"))
+				if (url.EndsWith(".pdf", StringComparison.OrdinalIgnoreCase))
+				{
+					// Handle PDF download
+					Task.Run(async () =>
+					{
+						try
+						{
+							using (var client = new HttpClient())
+							{
+								var pdfData = await client.GetByteArrayAsync(url);
+								await _handler.HandlePdfDownload(pdfData, url);
+							}
+						}
+						catch (Exception ex)
+						{
+							Console.WriteLine($"Error downloading PDF: {ex.Message}");
+						}
+					});
+					decisionHandler(WKNavigationActionPolicy.Cancel);
+					return;
+				} else if (url.StartsWith("blob:") || url.EndsWith(".zip"))
 				{
 					UIApplication.SharedApplication.OpenUrl(new NSUrl(url));
 					decisionHandler(WKNavigationActionPolicy.Cancel);
@@ -174,14 +194,12 @@ namespace MarketAlly.ViewEngine
 			try
 			{
 				// Trim invalid characters
-				result = result.Trim('"')  // Remove surrounding quotes
-							   .Replace("\\\"", "\"")  // Fix escaped quotes
-							   .Replace("\\n", " ")  // Normalize line breaks
-							   .Replace("\\r", " ")  // Remove carriage returns
-							   .Replace("\\t", " ")  // Remove tabs
-							   .Replace("\\\\", "\\"); // Fix double backslashes
-
-				Console.WriteLine("Raw JSON Output: " + result); // Debugging Log
+				result = result.Trim('"')
+						   .Replace("\\\"", "\"")
+						   .Replace("\\n", " ")
+						   .Replace("\\r", " ")
+						   .Replace("\\t", " ")
+						   .Replace("\\\\", "\\");
 
 				var rawData = JsonSerializer.Deserialize<PageRawData>(result, new JsonSerializerOptions
 				{
@@ -189,7 +207,12 @@ namespace MarketAlly.ViewEngine
 				});
 
 				var bodyText = DecodeBase64(rawData.Html);
-				return new PageData { Title = rawData.Title, Body = bodyText };
+				return new PageData
+				{
+					Title = rawData.Title,
+					Body = bodyText,
+					Url = rawData.Url // Include URL in the response
+				};
 			}
 			catch
 			{

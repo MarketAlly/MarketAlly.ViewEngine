@@ -145,10 +145,29 @@ namespace MarketAlly.ViewEngine
 			args.Handled = true;
 		}
 
-		private void OnDownloadStarting(CoreWebView2 sender, CoreWebView2DownloadStartingEventArgs args)
+		private async void OnDownloadStarting(CoreWebView2 sender, CoreWebView2DownloadStartingEventArgs args)
 		{
-			Process.Start(new ProcessStartInfo(args.ResultFilePath) { UseShellExecute = true });
-			args.Cancel = false;
+			if (args.ResultFilePath.EndsWith(".pdf", StringComparison.OrdinalIgnoreCase))
+			{
+				args.Handled = true;
+				try
+				{
+					using (var client = new HttpClient())
+					{
+						var pdfData = await client.GetByteArrayAsync(args.DownloadOperation.Uri);
+						await HandlePdfDownload(pdfData, args.DownloadOperation.Uri);
+					}
+				}
+				catch (Exception ex)
+				{
+					Console.WriteLine($"Error downloading PDF: {ex.Message}");
+				}
+			}
+			else
+			{
+				Process.Start(new ProcessStartInfo(args.ResultFilePath) { UseShellExecute = true });
+				args.Cancel = false;
+			}
 		}
 
 		public async void SetUserAgent(string userAgent)
@@ -171,40 +190,18 @@ namespace MarketAlly.ViewEngine
 				await PlatformView.EnsureCoreWebView2Async();
 			}
 
-			var script = @"
-                (function() {
-                    function toBase64(str) {
-                        try {
-                            return btoa(unescape(encodeURIComponent(str)));
-                        } catch (e) {
-                            return 'ERROR_ENCODING';
-                        }
-                    }
-                    
-                    let pageData = {
-                        title: document.title || '',
-                        html: toBase64(document.documentElement.outerHTML || '')
-                    };
-
-                    console.log('Extracted JSON:', JSON.stringify(pageData));
-                    return JSON.stringify(pageData);
-                })();";
-
 			try
 			{
-				string result = await PlatformView.CoreWebView2.ExecuteScriptAsync(script);
+				string result = await PlatformView.CoreWebView2.ExecuteScriptAsync(PageDataExtractor.ExtractScript);
 
 				if (!string.IsNullOrWhiteSpace(result))
 				{
-					// Trim invalid characters
-					result = result.Trim('"')  // Remove surrounding quotes
-								   .Replace("\\\"", "\"")  // Fix escaped quotes
-								   .Replace("\\n", " ")  // Normalize line breaks
-								   .Replace("\\r", " ")  // Remove carriage returns
-								   .Replace("\\t", " ")  // Remove tabs
-								   .Replace("\\\\", "\\"); // Fix double backslashes
-
-					Console.WriteLine("Raw JSON Output: " + result); // Debugging Log
+					result = result.Trim('"')
+							   .Replace("\\\"", "\"")
+							   .Replace("\\n", " ")
+							   .Replace("\\r", " ")
+							   .Replace("\\t", " ")
+							   .Replace("\\\\", "\\");
 
 					var rawData = JsonSerializer.Deserialize<PageRawData>(result, new JsonSerializerOptions
 					{
@@ -214,7 +211,8 @@ namespace MarketAlly.ViewEngine
 					return new PageData
 					{
 						Title = rawData.Title,
-						Body = DecodeBase64(rawData.Html)
+						Body = DecodeBase64(rawData.Html),
+						Url = rawData.Url // Include URL in the response
 					};
 				}
 			}

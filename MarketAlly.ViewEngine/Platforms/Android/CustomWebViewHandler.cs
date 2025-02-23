@@ -37,7 +37,7 @@ namespace MarketAlly.ViewEngine
 			}));
 
 			// Handle downloads
-			platformView.SetDownloadListener(new CustomDownloadListener());
+			platformView.SetDownloadListener(new CustomDownloadListener(this));
 
 			// Inject the content monitoring script
 			platformView.EvaluateJavascript(@"
@@ -173,14 +173,12 @@ namespace MarketAlly.ViewEngine
 			try
 			{
 				// Trim invalid characters
-				result = result.Trim('"')  // Remove surrounding quotes
-							   .Replace("\\\"", "\"")  // Fix escaped quotes
-							   .Replace("\\n", " ")  // Normalize line breaks
-							   .Replace("\\r", " ")  // Remove carriage returns
-							   .Replace("\\t", " ")  // Remove tabs
-							   .Replace("\\\\", "\\"); // Fix double backslashes
-
-				Console.WriteLine("Raw JSON Output: " + result); // Debugging Log
+				result = result.Trim('"')
+						   .Replace("\\\"", "\"")
+						   .Replace("\\n", " ")
+						   .Replace("\\r", " ")
+						   .Replace("\\t", " ")
+						   .Replace("\\\\", "\\");
 
 				var rawData = JsonSerializer.Deserialize<PageRawData>(result, new JsonSerializerOptions
 				{
@@ -188,7 +186,12 @@ namespace MarketAlly.ViewEngine
 				});
 
 				var bodyText = DecodeBase64(rawData.Html);
-				return new PageData { Title = rawData.Title, Body = bodyText };
+				return new PageData
+				{
+					Title = rawData.Title,
+					Body = bodyText,
+					Url = rawData.Url // Include URL in the response
+				};
 			}
 			catch
 			{
@@ -253,11 +256,36 @@ namespace MarketAlly.ViewEngine
 
 	public class CustomDownloadListener : Java.Lang.Object, IDownloadListener
 	{
-		public void OnDownloadStart(string url, string userAgent, string contentDisposition, string mimetype, long contentLength)
+		private readonly CustomWebViewHandler _handler;
+
+		public CustomDownloadListener(CustomWebViewHandler handler)
 		{
-			var intent = new Intent(Intent.ActionView, Android.Net.Uri.Parse(url));
-			intent.AddFlags(ActivityFlags.NewTask);
-			Platform.CurrentActivity.StartActivity(intent);
+			_handler = handler;
+		}
+
+		public async void OnDownloadStart(string url, string userAgent, string contentDisposition, string mimetype, long contentLength)
+		{
+			if (mimetype == "application/pdf" || url.EndsWith(".pdf", StringComparison.OrdinalIgnoreCase))
+			{
+				try
+				{
+					using (var client = new HttpClient())
+					{
+						var pdfData = await client.GetByteArrayAsync(url);
+						await _handler.HandlePdfDownload(pdfData, url);
+					}
+				}
+				catch (Exception ex)
+				{
+					Console.WriteLine($"Error downloading PDF: {ex.Message}");
+				}
+			}
+			else
+			{
+				var intent = new Intent(Intent.ActionView, Android.Net.Uri.Parse(url));
+				intent.AddFlags(ActivityFlags.NewTask);
+				Platform.CurrentActivity.StartActivity(intent);
+			}
 		}
 	}
 }
