@@ -24,7 +24,7 @@
   <PropertyGroup>
     <GeneratePackageOnBuild>true</GeneratePackageOnBuild>
     <PackageId>MarketAlly.ViewEngine</PackageId>
-    <Version>1.0.1</Version>
+    <Version>1.0.2</Version>
     <Authors>David H Friedel Jr</Authors>
     <Company>MarketAlly</Company>
     <Product>MarketAlly.ViewEngine</Product>
@@ -46,7 +46,7 @@
       Perfect for applications requiring advanced web content interaction, monitoring, and processing.
     </Description>
 
-    <Copyright>Copyright © 2024 MarketAlly</Copyright>
+    <Copyright>Copyright © 2025 MarketAlly</Copyright>
     <PackageIcon>icon.png</PackageIcon>
     <PackageReadmeFile>README.md</PackageReadmeFile>
     <PackageLicenseExpression>MIT</PackageLicenseExpression>

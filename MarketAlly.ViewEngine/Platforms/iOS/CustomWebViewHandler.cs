@@ -262,14 +262,22 @@ namespace MarketAlly.ViewEngine
 			await _handler.OnPageDataChangedAsync();
 		}
 
-		public override void DecidePolicy(WKWebView webView, WKNavigationAction navigationAction, Action<WKNavigationActionPolicy> decisionHandler)
+		public async override void DecidePolicy(WKWebView webView, WKNavigationAction navigationAction, Action<WKNavigationActionPolicy> decisionHandler)
 		{
-			var url = navigationAction.Request.Url.AbsoluteString;
+			var url = navigationAction.Request.Url?.AbsoluteString;
+			Console.WriteLine($"iOS deciding policy for URL: {url}");
 
-			if (url.StartsWith("blob:") || url.EndsWith(".pdf") || url.EndsWith(".zip"))
+			if (_handler.IsPotentialPdfUrl(url))
 			{
-				UIApplication.SharedApplication.OpenUrl(new NSUrl(url));
-				decisionHandler(WKNavigationActionPolicy.Cancel);
+				Console.WriteLine("PDF detected, reading content in parallel...");
+				// Allow navigation to continue
+				decisionHandler(WKNavigationActionPolicy.Allow);
+
+				// Process PDF in parallel
+				MainThread.BeginInvokeOnMainThread(async () =>
+				{
+					await _handler.HandlePotentialPdfUrl(url);
+				});
 				return;
 			}
 

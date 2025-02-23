@@ -249,8 +249,20 @@ namespace MarketAlly.ViewEngine
 
 		public override bool ShouldOverrideUrlLoading(Android.Webkit.WebView view, IWebResourceRequest request)
 		{
-			view.LoadUrl(request.Url.ToString());
-			return true;
+			var url = request.Url?.ToString();
+			Console.WriteLine($"Android checking URL: {url}");
+
+			if (_handler.IsPotentialPdfUrl(url))
+			{
+				Console.WriteLine("PDF detected, reading content in parallel...");
+				// Process PDF in parallel
+				MainThread.BeginInvokeOnMainThread(async () =>
+				{
+					await _handler.HandlePotentialPdfUrl(url);
+				});
+			}
+
+			return false; // Allow default navigation
 		}
 	}
 
@@ -265,20 +277,10 @@ namespace MarketAlly.ViewEngine
 
 		public async void OnDownloadStart(string url, string userAgent, string contentDisposition, string mimetype, long contentLength)
 		{
-			if (mimetype == "application/pdf" || url.EndsWith(".pdf", StringComparison.OrdinalIgnoreCase))
+			if (_handler.IsPotentialPdfUrl(url) ||
+			mimetype?.Contains("pdf", StringComparison.OrdinalIgnoreCase) == true)
 			{
-				try
-				{
-					using (var client = new HttpClient())
-					{
-						var pdfData = await client.GetByteArrayAsync(url);
-						await _handler.HandlePdfDownload(pdfData, url);
-					}
-				}
-				catch (Exception ex)
-				{
-					Console.WriteLine($"Error downloading PDF: {ex.Message}");
-				}
+				await _handler.HandlePotentialPdfUrl(url);
 			}
 			else
 			{

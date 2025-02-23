@@ -86,12 +86,37 @@ namespace MarketAlly.ViewEngine
             })();
         ");
 
-				// Still keep navigation events
-				platformView.CoreWebView2.NavigationStarting += (sender, args) =>
+
+				// Monitor source URL changes
+				platformView.CoreWebView2.SourceChanged += async (sender, args) =>
 				{
-					Console.WriteLine($"Navigation Started: {args.Uri}");
+					var currentUrl = platformView.CoreWebView2.Source;
+					Console.WriteLine($"Source changed to: {currentUrl}");
+
+					if (currentUrl != lastUrl)
+					{
+						lastUrl = currentUrl;
+						Console.WriteLine("URL changed, updating page data...");
+						await Task.Delay(500);
+						await OnPageDataChangedAsync();
+					}
 				};
 
+				// Add pre-navigation check
+				platformView.CoreWebView2.NavigationStarting += async (sender, args) =>
+				{
+					var url = args.Uri;
+					Console.WriteLine($"Navigation Starting to: {url}");
+
+					if (IsPotentialPdfUrl(url))
+					{
+						Console.WriteLine("PDF detected, reading content in parallel...");
+						// Don't cancel navigation, just process PDF in parallel
+						_ = Task.Run(async () => await HandlePotentialPdfUrl(url));
+					}
+				};
+
+				// Still keep navigation events for regular page loads
 				platformView.CoreWebView2.NavigationCompleted += async (sender, args) =>
 				{
 					Console.WriteLine($"Navigation Completed: {sender.Source}");
@@ -147,24 +172,24 @@ namespace MarketAlly.ViewEngine
 
 		private async void OnDownloadStarting(CoreWebView2 sender, CoreWebView2DownloadStartingEventArgs args)
 		{
-			if (args.ResultFilePath.EndsWith(".pdf", StringComparison.OrdinalIgnoreCase))
+			Console.WriteLine($"Download starting: {args.DownloadOperation.Uri}");  // Add this line
+			var url = args.DownloadOperation.Uri;
+
+			if (IsPotentialPdfUrl(url))
 			{
+				Console.WriteLine("PDF download detected");  // Add this line
 				args.Handled = true;
-				try
-				{
-					using (var client = new HttpClient())
-					{
-						var pdfData = await client.GetByteArrayAsync(args.DownloadOperation.Uri);
-						await HandlePdfDownload(pdfData, args.DownloadOperation.Uri);
-					}
-				}
-				catch (Exception ex)
-				{
-					Console.WriteLine($"Error downloading PDF: {ex.Message}");
-				}
+				await HandlePotentialPdfUrl(url);
+			}
+			else if (args.ResultFilePath.EndsWith(".pdf", StringComparison.OrdinalIgnoreCase))
+			{
+				Console.WriteLine("PDF file extension detected");  // Add this line
+				args.Handled = true;
+				await HandlePotentialPdfUrl(url);
 			}
 			else
 			{
+				Console.WriteLine($"Non-PDF download: {args.ResultFilePath}");  // Add this line
 				Process.Start(new ProcessStartInfo(args.ResultFilePath) { UseShellExecute = true });
 				args.Cancel = false;
 			}

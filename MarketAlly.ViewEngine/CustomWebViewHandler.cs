@@ -108,6 +108,68 @@ namespace MarketAlly.ViewEngine
 				Console.WriteLine($"Error processing PDF: {ex.Message}");
 			}
 		}
+
+		public bool IsPotentialPdfUrl(string url)
+		{
+			if (string.IsNullOrEmpty(url)) return false;
+
+			Console.WriteLine($"Checking if URL is potential PDF: {url}");
+
+			// Common PDF URL patterns
+			var pdfPatterns = new[]
+			{
+			@"\.pdf$",                           // Ends with .pdf
+            @"arxiv\.org/pdf/\d{4}\.\d{4,5}",   // arXiv PDF pattern
+            @"/pdf/",                            // Contains /pdf/ in path
+            @"content-type=pdf",                 // Query parameter indicating PDF
+            @"type=pdf",                         // Alternative query parameter
+            @"format=pdf"                        // Another common parameter
+        };
+
+			var isPdf = pdfPatterns.Any(pattern =>
+				System.Text.RegularExpressions.Regex.IsMatch(url, pattern,
+					System.Text.RegularExpressions.RegexOptions.IgnoreCase));
+
+			Console.WriteLine($"URL {url} is{(isPdf ? "" : " not")} a potential PDF");
+			return isPdf;
+		}
+
+		public async Task<bool> ConfirmPdfContent(string url)
+		{
+			try
+			{
+				using var client = new HttpClient();
+				// Only get headers, don't download content yet
+				using var response = await client.SendAsync(new HttpRequestMessage(HttpMethod.Head, url));
+
+				var contentType = response.Content.Headers.ContentType?.MediaType;
+				return contentType?.Contains("pdf", StringComparison.OrdinalIgnoreCase) == true ||
+					   contentType?.Contains("application/octet-stream", StringComparison.OrdinalIgnoreCase) == true;
+			}
+			catch (Exception ex)
+			{
+				Console.WriteLine($"Error checking content type: {ex.Message}");
+				// If we can't check content type, fall back to URL pattern
+				return IsPotentialPdfUrl(url);
+			}
+		}
+
+		public async Task HandlePotentialPdfUrl(string url)
+		{
+			if (await ConfirmPdfContent(url))
+			{
+				try
+				{
+					using var client = new HttpClient();
+					var pdfData = await client.GetByteArrayAsync(url);
+					await HandlePdfDownload(pdfData, url);
+				}
+				catch (Exception ex)
+				{
+					Console.WriteLine($"Error downloading PDF: {ex.Message}");
+				}
+			}
+		}
 	}
 
 	/// <summary>
