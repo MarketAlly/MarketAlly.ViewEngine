@@ -5,6 +5,8 @@ VisualStudioVersion = 17.14.35806.103 d17.14
 MinimumVisualStudioVersion = 10.0.40219.1
 Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "MarketAlly.ViewEngine", "MarketAlly.ViewEngine\MarketAlly.ViewEngine.csproj", "{843B8BE4-97FD-4A09-88FA-C86D26FAA5DF}"
 EndProject
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "TestApp", "TestApp\TestApp.csproj", "{6D90DC1C-14FD-4173-8EA8-AE7A6F827244}"
+EndProject
 Global
 	GlobalSection(SolutionConfigurationPlatforms) = preSolution
 		Debug|Any CPU = Debug|Any CPU
@@ -15,6 +17,10 @@ Global
 		{843B8BE4-97FD-4A09-88FA-C86D26FAA5DF}.Debug|Any CPU.Build.0 = Debug|Any CPU
 		{843B8BE4-97FD-4A09-88FA-C86D26FAA5DF}.Release|Any CPU.ActiveCfg = Release|Any CPU
 		{843B8BE4-97FD-4A09-88FA-C86D26FAA5DF}.Release|Any CPU.Build.0 = Release|Any CPU
+		{6D90DC1C-14FD-4173-8EA8-AE7A6F827244}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{6D90DC1C-14FD-4173-8EA8-AE7A6F827244}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{6D90DC1C-14FD-4173-8EA8-AE7A6F827244}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{6D90DC1C-14FD-4173-8EA8-AE7A6F827244}.Release|Any CPU.Build.0 = Release|Any CPU
 	EndGlobalSection
 	GlobalSection(SolutionProperties) = preSolution
 		HideSolutionNode = FALSE

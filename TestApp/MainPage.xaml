@@ -1,0 +1,30 @@
+﻿<?xml version="1.0" encoding="utf-8" ?>
+<ContentPage xmlns="http://schemas.microsoft.com/dotnet/2021/maui"
+             xmlns:x="http://schemas.microsoft.com/winfx/2009/xaml"
+             xmlns:local="clr-namespace:MarketAlly.ViewEngine;assembly=MarketAlly.ViewEngine"
+             x:Class="TestApp.MainPage">
+
+    <Grid>
+        <Grid.RowDefinitions>
+            <RowDefinition Height="Auto" />
+            <RowDefinition Height="*" />
+        </Grid.RowDefinitions>
+        <Grid.ColumnDefinitions>
+            <ColumnDefinition Width="*" />
+            <ColumnDefinition Width="300" />
+        </Grid.ColumnDefinitions>
+        <Entry x:Name="urlEntry" Grid.Row="0" Placeholder="Enter URL" ReturnType="Go" Keyboard="Url" Completed="urlEntry_Completed" />
+        <local:CustomWebView x:Name="webView"
+                             Grid.Row="1"
+                             Navigated="webView_Navigated"
+                             Source="https://www.w3schools.com/tags/tryit.asp?filename=tryhtml5_a_target"
+                             UserAgent="Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36" />
+
+        <Entry x:Name="titleEntry" Grid.Column="1" Grid.Row="0" />
+        <ScrollView Grid.Column="1" Grid.Row="1">
+            <Label x:Name="bodyEntry" BackgroundColor="White" TextColor="Black" />
+        </ScrollView>
+       
+    </Grid>
+
+</ContentPage>
