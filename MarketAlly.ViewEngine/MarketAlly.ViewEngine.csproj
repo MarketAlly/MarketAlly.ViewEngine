@@ -17,22 +17,80 @@
 		<TargetPlatformMinVersion Condition="$([MSBuild]::GetTargetPlatformIdentifier('$(TargetFramework)')) == 'windows'">10.0.17763.0</TargetPlatformMinVersion>
 		<SupportedOSPlatformVersion Condition="$([MSBuild]::GetTargetPlatformIdentifier('$(TargetFramework)')) == 'tizen'">6.5</SupportedOSPlatformVersion>
 
-    <!-- NuGet Metadata -->
-    <GeneratePackageOnBuild>true</GeneratePackageOnBuild>
-    <!-- Automatically creates a NuGet package on build -->
-    <PackageId>MarketAlly.ViewEngine</PackageId>
-    <Version>1.0.1</Version>
-    <Authors>David H Friedel Jr</Authors>
-    <Company>MarketAlly</Company>
-    <Description>A .NET MAUI Custom WebView with full browser capabilities.</Description>
-    <PackageTags>WebView, .NET MAUI, Custom Control</PackageTags>
     <PackageOutputPath>C:\Users\logik\Dropbox\Nugets</PackageOutputPath>
     <!-- Set export directory -->
   </PropertyGroup>
 
+  <PropertyGroup>
+    <GeneratePackageOnBuild>true</GeneratePackageOnBuild>
+    <PackageId>MarketAlly.ViewEngine</PackageId>
+    <Version>1.0.1</Version>
+    <Authors>David H Friedel Jr</Authors>
+    <Company>MarketAlly</Company>
+    <Product>MarketAlly.ViewEngine</Product>
+
+    <Title>Advanced .NET MAUI WebView with Content Monitoring</Title>
+    <Description>
+      Enhanced .NET MAUI WebView control with advanced browser capabilities, real-time content monitoring, and PDF processing. Features include custom user-agent configuration, DOM change detection, PDF handling, cookie management, and seamless cross-platform support for Android, iOS, and Windows.
+
+      Key Features:
+      - Custom User-Agent and browser detection bypass
+      - Real-time content monitoring and DOM change detection
+      - Automatic PDF download handling and text extraction
+      - Full cookie and storage support
+      - WebRTC and WebGL compatibility
+      - Cross-platform implementation (Android, iOS, Windows)
+      - Event-based content updates
+      - JavaScript injection support
+
+      Perfect for applications requiring advanced web content interaction, monitoring, and processing.
+    </Description>
+
+    <Copyright>Copyright © 2024 MarketAlly</Copyright>
+    <PackageIcon>icon.png</PackageIcon>
+    <PackageReadmeFile>README.md</PackageReadmeFile>
+    <PackageLicenseExpression>MIT</PackageLicenseExpression>
+    <PackageProjectUrl>https://github.com/MarketAlly/MarketAlly.ViewEngine</PackageProjectUrl>
+    <RepositoryUrl>https://github.com/MarketAlly/MarketAlly.ViewEngine</RepositoryUrl>
+    <RepositoryType>git</RepositoryType>
+
+    <PackageTags>webview dotnet-maui maui custom-control browser pdf-handling content-monitoring dom-monitoring user-agent cookie-management webrtc webgl android ios windows cross-platform web-scraping content-extraction</PackageTags>
+
+    <PackageReleaseNotes>
+      Version 1.0.1:
+      - Enhanced content monitoring with real-time DOM change detection
+      - Improved PDF handling and text extraction
+      - Added custom user-agent support
+      - Enhanced cross-platform compatibility
+      - Added JavaScript injection capabilities
+      - Improved cookie and storage management
+    </PackageReleaseNotes>
+
+    <!-- Required dependencies -->
+    <DependencyGroup>
+      <Dependency Id="Microsoft.Maui.Controls" Version="8.0.3" />
+      <Dependency Id="itext7" Version="8.0.2" />
+    </DependencyGroup>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <MauiIcon Include="icon.png" />
+  </ItemGroup>
+
 	<ItemGroup>
-		<PackageReference Include="Microsoft.Maui.Controls" Version="$(MauiVersion)" />
-    <PackageReference Include="itext7" Version="8.0.2" />
+		<PackageReference Include="Microsoft.Maui.Controls" Version="9.0.40" />
+    <PackageReference Include="itext7" Version="9.1.0" />
+	</ItemGroup>
+
+	<ItemGroup>
+    <None Include="icon.png">
+      <Pack>true</Pack>
+      <PackagePath>\</PackagePath>
+      <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
+      <Visible>true</Visible>
+    </None>
+    <!-- Configure README -->
+    <None Include="README.md" Pack="true" PackagePath="\" />
 	</ItemGroup>
 
 </Project>
