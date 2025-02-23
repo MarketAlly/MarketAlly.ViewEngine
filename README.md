@@ -1,45 +1,56 @@
 # MarketAlly.ViewEngine
 
 ## 📢 Overview
-`MarketAlly.ViewEngine` is a powerful `.NET MAUI` WebView control that mimics a **real browser**, enabling full JavaScript support, cookies, WebRTC, and custom User-Agent overrides. It works seamlessly across **Android, iOS, and Windows**.
+`MarketAlly.ViewEngine` is a powerful `.NET MAUI` WebView control that provides advanced browser capabilities, content monitoring, and PDF handling. It works seamlessly across **Android, iOS, and Windows**, offering features beyond the standard WebView implementation.
 
 ## 🚀 Features
-✅ Supports **custom User-Agent**  
-✅ Enables **cookies, storage, WebRTC, and WebGL**  
-✅ **Bypasses WebView detection techniques**  
-✅ **Fully compatible with .NET MAUI**  
-✅ Works on **Android, iOS, and Windows**  
+✅ **Browser Capabilities**
+- Custom User-Agent configuration
+- Full cookie and storage support
+- WebRTC and WebGL support
+- Browser detection bypass
+- Seamless navigation handling
 
----
+✅ **Content Monitoring**
+- Real-time DOM change detection
+- Automatic content updates
+- Click event monitoring
+- Navigation tracking
+- Source change notifications
+
+✅ **PDF Integration**
+- Automatic PDF download handling
+- PDF text extraction
+- Integrated PDF processing
+- PDF content analysis
+
+✅ **Data Extraction**
+- Page title extraction
+- HTML content capture
+- URL tracking
+- Meta description parsing
+- Base64 content handling
 
 ## **📌 Installation**
-To install the package, run the following command in your .NET MAUI app:
+Install the package in your .NET MAUI app using:
 ```sh
 dotnet add package MarketAlly.ViewEngine
 ```
-Or, in **Visual Studio**:
-1. Open **Package Manager Console**.
-2. Run:
-   ```powershell
-   Install-Package MarketAlly.ViewEngine
-   ```
 
----
+Or via **Visual Studio** Package Manager Console:
+```powershell
+Install-Package MarketAlly.ViewEngine
+```
 
-## **📌 Setup in `MauiProgram.cs`**
-After installing, you **must register the custom WebView handler** inside your `.NET MAUI` app.
+## **📌 Setup**
 
-### **Modify `MauiProgram.cs` to add the handler:**
+### **1. Register in `MauiProgram.cs`**
 ```csharp
-using Microsoft.Maui;
-using Microsoft.Maui.Hosting;
-using MarketAlly.ViewEngine.Controls;
-using MarketAlly.ViewEngine.Handlers;
+using MarketAlly.ViewEngine;
 
 var builder = MauiApp.CreateBuilder();
 builder.UseMauiApp<App>();
 
-// Register the custom WebView handler
 builder.ConfigureMauiHandlers(handlers =>
 {
     handlers.AddHandler(typeof(CustomWebView), typeof(CustomWebViewHandler));
@@ -47,25 +58,21 @@ builder.ConfigureMauiHandlers(handlers =>
 
 return builder.Build();
 ```
-✅ **This ensures your app correctly loads the `CustomWebView` with platform-specific optimizations.**
 
----
-
-## **📌 How to Use `CustomWebView`**
-Once registered, you can use `CustomWebView` in **XAML** or **C#**.
-
-### **🔹 Using in XAML**
+### **2. XAML Implementation**
 ```xml
-<ContentPage xmlns:controls="clr-namespace:MarketAlly.ViewEngine.Controls;assembly=MarketAlly.ViewEngine">
+<ContentPage xmlns:controls="clr-namespace:MarketAlly.ViewEngine;assembly=MarketAlly.ViewEngine">
     <controls:CustomWebView 
+        x:Name="webView"
         Source="https://example.com"
-        UserAgent="Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36"/>
+        UserAgent="Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36"
+        PageDataChanged="OnPageDataChanged"/>
 </ContentPage>
 ```
 
-### **🔹 Using in C#**
+### **3. C# Implementation**
 ```csharp
-using MarketAlly.ViewEngine.Controls;
+using MarketAlly.ViewEngine;
 
 var webView = new CustomWebView
 {
@@ -73,43 +80,91 @@ var webView = new CustomWebView
     UserAgent = "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36"
 };
 
-Content = new StackLayout
+webView.PageDataChanged += async (sender, pageData) =>
 {
-    Children = { webView }
+    Console.WriteLine($"Page Title: {pageData.Title}");
+    Console.WriteLine($"Page URL: {pageData.Url}");
+    Console.WriteLine($"Content Length: {pageData.Body?.Length ?? 0}");
 };
 ```
 
----
+## **📌 Advanced Features**
+
+### **Content Monitoring**
+The WebView automatically monitors and notifies of content changes:
+```csharp
+webView.PageDataChanged += async (sender, pageData) =>
+{
+    // Handle page content updates
+    var title = pageData.Title;
+    var content = pageData.Body;
+    var url = pageData.Url;
+    var description = pageData.MetaDescription;
+};
+```
+
+### **PDF Handling**
+PDF files are automatically processed:
+```csharp
+webView.PageDataChanged += async (sender, pageData) =>
+{
+    if (pageData.Url.EndsWith(".pdf"))
+    {
+        // Access extracted PDF content
+        var pdfContent = pageData.Body;
+        var pageCount = pageData.MetaDescription;
+    }
+};
+```
+
+### **JavaScript Injection**
+Inject custom JavaScript into the page:
+```csharp
+await webView.Handler?.InvokeAsync("InjectJavaScriptAsync", "console.log('Hello from JS!');");
+```
+
+## **📌 Platform-Specific Features**
+
+### **Windows (WebView2)**
+- Chromium-based engine
+- Full DOM access
+- Modern web standards support
+- PDF integration
+
+### **Android**
+- Chrome-like WebView
+- Custom download handling
+- JavaScript interface
+- Cookie management
+
+### **iOS**
+- WKWebView implementation
+- Navigation delegation
+- Script message handling
+- Custom URL scheme handling
 
 ## **📌 FAQ**
-### ❓ **How does this WebView differ from the default .NET MAUI WebView?**
-- `CustomWebView` allows **custom User-Agent overrides**, enables **cookies, storage, WebRTC**, and improves **browser detection evasion**.
-- The default `.NET MAUI WebView` lacks these advanced features.
 
-### ❓ **Does this work with authentication-based websites?**
-Yes! **Cookies and session data persist** between navigations, making it suitable for login-based websites.
+### ❓ **How does content monitoring work?**
+The WebView uses a MutationObserver to track DOM changes and notifies your app through the `PageDataChanged` event.
 
-### ❓ **Does this work on iOS, Android, and Windows?**
-Yes! It uses:
-- **Android:** Native WebView (with Chrome-like behavior).
-- **iOS:** `WKWebView` with full JavaScript and cookie support.
-- **Windows:** `WebView2` (Chromium-based).
+### ❓ **How is PDF handling implemented?**
+PDFs are automatically downloaded and processed using iText, with text extraction and metadata parsing.
 
-### ❓ **Can I use this with OAuth authentication?**
-Yes! The WebView can be used for **OAuth authentication flows**, but we recommend opening authentication pages in the **system browser** (e.g., `SFSafariViewController` for iOS or `Custom Tabs` for Android).
+### ❓ **Can I customize the content monitoring?**
+Yes! You can modify the monitoring behavior through JavaScript injection and custom event handling.
 
----
+### ❓ **Does this support secure contexts?**
+Yes! The WebView maintains cookie state and supports HTTPS, making it suitable for authenticated sessions.
+
+### ❓ **How do I handle downloads?**
+Downloads are automatically managed with platform-specific handlers, including PDF processing and external file opening.
 
 ## **📌 Contributing**
-Want to improve this library? Feel free to submit **issues** and **pull requests** on https://github.com/MarketAlly/MarketAlly.ViewEngine
-
----
+Contributions welcome! Submit issues and pull requests on https://github.com/MarketAlly/MarketAlly.ViewEngine
 
 ## **📌 License**
 This project is licensed under the **MIT License**.
 
----
-
 ## **📌 Support**
-💬 **Need help?**  
-Open an issue on GitHub or contact us via email at `support@marketally.com`. 🚀
+Need help? Open an issue on GitHub or contact us at `support@marketally.com`.
