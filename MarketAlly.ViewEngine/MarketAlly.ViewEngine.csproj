@@ -21,7 +21,7 @@
     <GeneratePackageOnBuild>true</GeneratePackageOnBuild>
     <!-- Automatically creates a NuGet package on build -->
     <PackageId>MarketAlly.ViewEngine</PackageId>
-    <Version>1.0.0</Version>
+    <Version>1.0.1</Version>
     <Authors>David H Friedel Jr</Authors>
     <Company>MarketAlly</Company>
     <Description>A .NET MAUI Custom WebView with full browser capabilities.</Description>
