@@ -19,7 +19,7 @@ namespace TestApp
 			// Register Custom WebView Handler
 			builder.ConfigureMauiHandlers(handlers =>
 			{
-				handlers.AddHandler(typeof(CustomWebView), typeof(CustomWebViewHandler));
+				handlers.AddHandler(typeof(MarketAlly.Maui.ViewEngine.WebView), typeof(WebViewHandler));
 			});
 
 #if DEBUG

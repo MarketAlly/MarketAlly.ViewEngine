@@ -14,7 +14,7 @@
             <ColumnDefinition Width="300" />
         </Grid.ColumnDefinitions>
         <Entry x:Name="urlEntry" Grid.Row="0" Placeholder="Enter URL" ReturnType="Go" Keyboard="Url" Completed="urlEntry_Completed" />
-        <local:CustomWebView x:Name="webView"
+        <local:WebView x:Name="webView"
                              Grid.Row="1"
                              PageDataChanged="webView_PageDataChanged"
                              Source="https://www.w3schools.com/tags/tryit.asp?filename=tryhtml5_a_target"

@@ -1,14 +1,14 @@
 ﻿namespace MarketAlly.Maui.ViewEngine
 {
-	public class CustomWebView : WebView
+	public class WebView : Microsoft.Maui.Controls.WebView
 	{
 		// Expose PageDataChanged event at the WebView level
 		public event EventHandler<PageData> PageDataChanged;
 
 		public static readonly BindableProperty UserAgentProperty =
-			BindableProperty.Create(nameof(UserAgent), typeof(string), typeof(CustomWebView), default(string));
+			BindableProperty.Create(nameof(UserAgent), typeof(string), typeof(WebView), default(string));
 
-		public CustomWebView()
+		public WebView()
 		{
 			Loaded += OnLoaded;
 			Unloaded += OnUnloaded;
@@ -16,7 +16,7 @@
 
 		private void OnLoaded(object sender, EventArgs e)
 		{
-			if (Handler is CustomWebViewHandler handler)
+			if (Handler is WebViewHandler handler)
 			{
 				// Ensure no duplicate subscriptions
 				handler.PageDataChanged -= OnPageDataChanged;
@@ -26,7 +26,7 @@
 
 		private void OnUnloaded(object sender, EventArgs e)
 		{
-			if (Handler is CustomWebViewHandler handler)
+			if (Handler is WebViewHandler handler)
 			{
 				handler.PageDataChanged -= OnPageDataChanged; // Unsubscribe to prevent leaks
 			}
@@ -51,7 +51,7 @@
 		/// </summary>
 		public async Task<PageData> GetPageDataAsync()
 		{
-			if (Handler is CustomWebViewHandler customHandler)
+			if (Handler is WebViewHandler customHandler)
 			{
 				return await customHandler.GetPageDataAsync();
 			}

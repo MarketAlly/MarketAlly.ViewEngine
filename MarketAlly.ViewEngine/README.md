@@ -42,22 +42,22 @@ builder.UseMauiApp<App>();
 // Register the custom WebView handler
 builder.ConfigureMauiHandlers(handlers =>
 {
-    handlers.AddHandler(typeof(CustomWebView), typeof(CustomWebViewHandler));
+    handlers.AddHandler(typeof(WebView), typeof(WebViewHandler));
 });
 
 return builder.Build();
 ```
-✅ **This ensures your app correctly loads the `CustomWebView` with platform-specific optimizations.**
+✅ **This ensures your app correctly loads the `WebView` with platform-specific optimizations.**
 
 ---
 
-## **📌 How to Use `CustomWebView`**
-Once registered, you can use `CustomWebView` in **XAML** or **C#**.
+## **📌 How to Use `WebView`**
+Once registered, you can use `WebView` in **XAML** or **C#**.
 
 ### **🔹 Using in XAML**
 ```xml
 <ContentPage xmlns:controls="clr-namespace:MarketAlly.ViewEngine.Controls;assembly=MarketAlly.ViewEngine">
-    <controls:CustomWebView 
+    <controls:WebView 
         Source="https://example.com"
         UserAgent="Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36"/>
 </ContentPage>
@@ -67,7 +67,7 @@ Once registered, you can use `CustomWebView` in **XAML** or **C#**.
 ```csharp
 using MarketAlly.Maui.ViewEngine.Controls;
 
-var webView = new CustomWebView
+var webView = new WebView
 {
     Source = "https://example.com",
     UserAgent = "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36"
@@ -83,7 +83,7 @@ Content = new StackLayout
 
 ## **📌 FAQ**
 ### ❓ **How does this WebView differ from the default .NET MAUI WebView?**
-- `CustomWebView` allows **custom User-Agent overrides**, enables **cookies, storage, WebRTC**, and improves **browser detection evasion**.
+- `WebView` allows **custom User-Agent overrides**, enables **cookies, storage, WebRTC**, and improves **browser detection evasion**.
 - The default `.NET MAUI WebView` lacks these advanced features.
 
 ### ❓ **Does this work with authentication-based websites?**

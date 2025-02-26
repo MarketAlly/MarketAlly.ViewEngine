@@ -11,9 +11,9 @@ using System.Threading.Tasks;
 
 namespace MarketAlly.Maui.ViewEngine
 {
-	public partial class CustomWebViewHandler : WebViewHandler
+	public partial class WebViewHandler : Microsoft.Maui.Handlers.WebViewHandler
 	{
-		public CustomWebViewHandler() : base(Mapper) { }
+		public WebViewHandler() : base(Mapper) { }
 
 		public event EventHandler<PageData> PageDataChanged;
 
@@ -24,13 +24,13 @@ namespace MarketAlly.Maui.ViewEngine
 			PageDataChanged?.Invoke(this, pageData);
 		}
 
-		public static new IPropertyMapper<CustomWebView, CustomWebViewHandler> Mapper =
-			new PropertyMapper<CustomWebView, CustomWebViewHandler>(WebViewHandler.Mapper)
+		public static new IPropertyMapper<WebView, WebViewHandler> Mapper =
+			new PropertyMapper<WebView, WebViewHandler>(WebViewHandler.Mapper)
 			{
-				[nameof(CustomWebView.UserAgent)] = MapUserAgent
+				[nameof(WebView.UserAgent)] = MapUserAgent
 			};
 
-		public static void MapUserAgent(CustomWebViewHandler handler, CustomWebView view)
+		public static void MapUserAgent(WebViewHandler handler, WebView view)
 		{
 			handler.SetUserAgent(view.UserAgent);
 		}

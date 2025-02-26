@@ -6,7 +6,7 @@ using static Android.Media.MediaRouter;
 
 namespace MarketAlly.Maui.ViewEngine
 {
-	public partial class CustomWebViewHandler
+	public partial class WebViewHandler
 	{
 		protected override void ConnectHandler(Android.Webkit.WebView platformView)
 		{
@@ -23,7 +23,7 @@ namespace MarketAlly.Maui.ViewEngine
 			string lastUrl = string.Empty;
 
 			// Create a custom WebViewClient to monitor URL changes
-			platformView.SetWebViewClient(new CustomWebViewClient(this, (url) =>
+			platformView.SetWebViewClient(new WebViewClient(this, (url) =>
 			{
 				if (url != lastUrl)
 				{
@@ -82,12 +82,12 @@ namespace MarketAlly.Maui.ViewEngine
 			platformView.AddJavascriptInterface(new WebViewJavaScriptInterface(this), "Android");
 		}
 
-		public class CustomWebViewClient : WebViewClient
+		public class WebViewClient : Android.Webkit.WebViewClient
 		{
-			private readonly CustomWebViewHandler _handler;
+			private readonly WebViewHandler _handler;
 			private readonly Action<string> _onUrlChanged;
 
-			public CustomWebViewClient(CustomWebViewHandler handler, Action<string> onUrlChanged)
+			public WebViewClient(WebViewHandler handler, Action<string> onUrlChanged)
 			{
 				_handler = handler;
 				_onUrlChanged = onUrlChanged;
@@ -108,9 +108,9 @@ namespace MarketAlly.Maui.ViewEngine
 
 		public class WebViewJavaScriptInterface : Java.Lang.Object
 		{
-			private readonly CustomWebViewHandler _handler;
+			private readonly WebViewHandler _handler;
 
-			public WebViewJavaScriptInterface(CustomWebViewHandler handler)
+			public WebViewJavaScriptInterface(WebViewHandler handler)
 			{
 				_handler = handler;
 			}
@@ -202,9 +202,9 @@ namespace MarketAlly.Maui.ViewEngine
 
 	public class WebViewJavaScriptInterface : Java.Lang.Object
 	{
-		private readonly CustomWebViewHandler _handler;
+		private readonly WebViewHandler _handler;
 
-		public WebViewJavaScriptInterface(CustomWebViewHandler handler)
+		public WebViewJavaScriptInterface(WebViewHandler handler)
 		{
 			_handler = handler;
 		}
@@ -231,11 +231,11 @@ namespace MarketAlly.Maui.ViewEngine
 		}
 	}
 
-	public class CustomWebViewClient : WebViewClient
+	public class WebViewClient : Android.Webkit.WebViewClient
 	{
-		private readonly CustomWebViewHandler _handler;
+		private readonly WebViewHandler _handler;
 
-		public CustomWebViewClient(CustomWebViewHandler handler)
+		public WebViewClient(WebViewHandler handler)
 		{
 			_handler = handler;
 		}
@@ -268,9 +268,9 @@ namespace MarketAlly.Maui.ViewEngine
 
 	public class CustomDownloadListener : Java.Lang.Object, IDownloadListener
 	{
-		private readonly CustomWebViewHandler _handler;
+		private readonly WebViewHandler _handler;
 
-		public CustomDownloadListener(CustomWebViewHandler handler)
+		public CustomDownloadListener(WebViewHandler handler)
 		{
 			_handler = handler;
 		}

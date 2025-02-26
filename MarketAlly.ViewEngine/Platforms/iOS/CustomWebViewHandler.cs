@@ -5,7 +5,7 @@ using WebKit;
 
 namespace MarketAlly.Maui.ViewEngine
 {
-	public partial class CustomWebViewHandler
+	public partial class WebViewHandler
 	{
 		protected override void ConnectHandler(WKWebView platformView)
 		{
@@ -80,10 +80,10 @@ namespace MarketAlly.Maui.ViewEngine
 
 		public class CustomNavigationDelegate : WKNavigationDelegate
 		{
-			private readonly CustomWebViewHandler _handler;
+			private readonly WebViewHandler _handler;
 			private readonly Action<string> _onUrlChanged;
 
-			public CustomNavigationDelegate(CustomWebViewHandler handler, Action<string> onUrlChanged)
+			public CustomNavigationDelegate(WebViewHandler handler, Action<string> onUrlChanged)
 			{
 				_handler = handler;
 				_onUrlChanged = onUrlChanged;
@@ -132,9 +132,9 @@ namespace MarketAlly.Maui.ViewEngine
 
 		public class CustomScriptMessageHandler : NSObject, IWKScriptMessageHandler
 		{
-			private readonly CustomWebViewHandler _handler;
+			private readonly WebViewHandler _handler;
 
-			public CustomScriptMessageHandler(CustomWebViewHandler handler)
+			public CustomScriptMessageHandler(WebViewHandler handler)
 			{
 				_handler = handler;
 			}
@@ -228,9 +228,9 @@ namespace MarketAlly.Maui.ViewEngine
 
 	public class CustomScriptMessageHandler : NSObject, IWKScriptMessageHandler
 	{
-		private readonly CustomWebViewHandler _handler;
+		private readonly WebViewHandler _handler;
 
-		public CustomScriptMessageHandler(CustomWebViewHandler handler)
+		public CustomScriptMessageHandler(WebViewHandler handler)
 		{
 			_handler = handler;
 		}
@@ -249,9 +249,9 @@ namespace MarketAlly.Maui.ViewEngine
 
 	public class CustomNavigationDelegate : WKNavigationDelegate
 	{
-		private readonly CustomWebViewHandler _handler;
+		private readonly WebViewHandler _handler;
 
-		public CustomNavigationDelegate(CustomWebViewHandler handler)
+		public CustomNavigationDelegate(WebViewHandler handler)
 		{
 			_handler = handler;
 		}

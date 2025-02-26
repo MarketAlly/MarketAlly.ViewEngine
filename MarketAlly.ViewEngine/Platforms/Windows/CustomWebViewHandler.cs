@@ -5,7 +5,7 @@ using System.Text.Json;
 
 namespace MarketAlly.Maui.ViewEngine
 {
-	public partial class CustomWebViewHandler
+	public partial class WebViewHandler
 	{
 		protected override async void ConnectHandler(Microsoft.UI.Xaml.Controls.WebView2 platformView)
 		{
