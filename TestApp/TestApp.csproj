@@ -65,7 +65,7 @@
 	</ItemGroup>
 
 	<ItemGroup>
-	  <ProjectReference Include="..\MarketAlly.ViewEngine\MarketAlly.ViewEngine.csproj" />
+	  <ProjectReference Include="..\MarketAlly.ViewEngine\MarketAlly.Maui.ViewEngine.csproj" />
 	</ItemGroup>
 
 </Project>

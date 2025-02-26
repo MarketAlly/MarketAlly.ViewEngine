@@ -1,4 +1,4 @@
-﻿using MarketAlly.ViewEngine;
+﻿using MarketAlly.Maui.ViewEngine;
 using Microsoft.Extensions.Logging;
 
 namespace TestApp

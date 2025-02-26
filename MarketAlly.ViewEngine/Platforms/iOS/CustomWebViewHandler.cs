@@ -3,7 +3,7 @@ using System.Text.Json;
 using UIKit;
 using WebKit;
 
-namespace MarketAlly.ViewEngine
+namespace MarketAlly.Maui.ViewEngine
 {
 	public partial class CustomWebViewHandler
 	{

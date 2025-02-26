@@ -1,4 +1,4 @@
-# MarketAlly.ViewEngine
+# MarketAlly.Maui.ViewEngine
 
 ## 📢 Overview
 `MarketAlly.ViewEngine` is a powerful `.NET MAUI` WebView control that mimics a **real browser**, enabling full JavaScript support, cookies, WebRTC, and custom User-Agent overrides. It works seamlessly across **Android, iOS, and Windows**.
@@ -15,7 +15,7 @@
 ## **📌 Installation**
 To install the package, run the following command in your .NET MAUI app:
 ```sh
-dotnet add package MarketAlly.ViewEngine
+dotnet add package MarketAlly.Maui.ViewEngine
 ```
 Or, in **Visual Studio**:
 1. Open **Package Manager Console**.
@@ -33,8 +33,8 @@ After installing, you **must register the custom WebView handler** inside your `
 ```csharp
 using Microsoft.Maui;
 using Microsoft.Maui.Hosting;
-using MarketAlly.ViewEngine.Controls;
-using MarketAlly.ViewEngine.Handlers;
+using MarketAlly.Maui.ViewEngine.Controls;
+using MarketAlly.Maui.ViewEngine.Handlers;
 
 var builder = MauiApp.CreateBuilder();
 builder.UseMauiApp<App>();
@@ -65,7 +65,7 @@ Once registered, you can use `CustomWebView` in **XAML** or **C#**.
 
 ### **🔹 Using in C#**
 ```csharp
-using MarketAlly.ViewEngine.Controls;
+using MarketAlly.Maui.ViewEngine.Controls;
 
 var webView = new CustomWebView
 {

@@ -1,7 +1,7 @@
-# MarketAlly.ViewEngine
+# MarketAlly.Maui.ViewEngine
 
 ## 📢 Overview
-`MarketAlly.ViewEngine` is a powerful `.NET MAUI` WebView control that provides advanced browser capabilities, content monitoring, and PDF handling. It works seamlessly across **Android, iOS, and Windows**, offering features beyond the standard WebView implementation.
+`MarketAlly.Maui.ViewEngine` is a powerful `.NET MAUI` WebView control that provides advanced browser capabilities, content monitoring, and PDF handling. It works seamlessly across **Android, iOS, and Windows**, offering features beyond the standard WebView implementation.
 
 ## 🚀 Features
 ✅ **Browser Capabilities**
@@ -34,19 +34,19 @@
 ## **📌 Installation**
 Install the package in your .NET MAUI app using:
 ```sh
-dotnet add package MarketAlly.ViewEngine
+dotnet add package MarketAlly.Maui.ViewEngine
 ```
 
 Or via **Visual Studio** Package Manager Console:
 ```powershell
-Install-Package MarketAlly.ViewEngine
+Install-Package MarketAlly.Maui.ViewEngine
 ```
 
 ## **📌 Setup**
 
 ### **1. Register in `MauiProgram.cs`**
 ```csharp
-using MarketAlly.ViewEngine;
+using MarketAlly.Maui.ViewEngine;
 
 var builder = MauiApp.CreateBuilder();
 builder.UseMauiApp<App>();
@@ -61,7 +61,7 @@ return builder.Build();
 
 ### **2. XAML Implementation**
 ```xml
-<ContentPage xmlns:controls="clr-namespace:MarketAlly.ViewEngine;assembly=MarketAlly.ViewEngine">
+<ContentPage xmlns:controls="clr-namespace:MarketAlly.Maui.ViewEngine;assembly=MarketAlly.Maui.ViewEngine">
     <controls:CustomWebView 
         x:Name="webView"
         Source="https://example.com"
@@ -72,7 +72,7 @@ return builder.Build();
 
 ### **3. C# Implementation**
 ```csharp
-using MarketAlly.ViewEngine;
+using MarketAlly.Maui.ViewEngine;
 
 var webView = new CustomWebView
 {

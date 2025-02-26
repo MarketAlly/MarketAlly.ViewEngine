@@ -24,10 +24,10 @@
   <PropertyGroup>
     <GeneratePackageOnBuild>true</GeneratePackageOnBuild>
     <PackageId>MarketAlly.ViewEngine</PackageId>
-    <Version>1.0.2</Version>
+    <Version>1.0.3</Version>
     <Authors>David H Friedel Jr</Authors>
     <Company>MarketAlly</Company>
-    <Product>MarketAlly.ViewEngine</Product>
+    <Product>MarketAlly.Maui.ViewEngine</Product>
 
     <Title>Advanced .NET MAUI WebView with Content Monitoring</Title>
     <Description>

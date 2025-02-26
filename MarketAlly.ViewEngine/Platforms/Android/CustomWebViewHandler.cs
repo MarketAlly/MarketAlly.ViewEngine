@@ -4,7 +4,7 @@ using Microsoft.Maui.Handlers;
 using System.Text.Json;
 using static Android.Media.MediaRouter;
 
-namespace MarketAlly.ViewEngine
+namespace MarketAlly.Maui.ViewEngine
 {
 	public partial class CustomWebViewHandler
 	{

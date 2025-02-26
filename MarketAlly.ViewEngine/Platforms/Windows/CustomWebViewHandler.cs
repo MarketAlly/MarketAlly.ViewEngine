@@ -3,7 +3,7 @@ using Microsoft.Web.WebView2.Core;
 using System.Diagnostics;
 using System.Text.Json;
 
-namespace MarketAlly.ViewEngine
+namespace MarketAlly.Maui.ViewEngine
 {
 	public partial class CustomWebViewHandler
 	{

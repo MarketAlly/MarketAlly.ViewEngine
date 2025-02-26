@@ -1,4 +1,4 @@
-﻿namespace MarketAlly.ViewEngine
+﻿namespace MarketAlly.Maui.ViewEngine
 {
 	public class CustomWebView : WebView
 	{
