@@ -25,7 +25,7 @@ namespace MarketAlly.Maui.ViewEngine
 		}
 
 		public static new IPropertyMapper<WebView, WebViewHandler> Mapper =
-			new PropertyMapper<WebView, WebViewHandler>(WebViewHandler.Mapper)
+			new PropertyMapper<WebView, WebViewHandler>(Microsoft.Maui.Handlers.WebViewHandler.Mapper)
 			{
 				[nameof(WebView.UserAgent)] = MapUserAgent
 			};
