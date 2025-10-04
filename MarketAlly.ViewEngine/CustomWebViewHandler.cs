@@ -13,6 +13,8 @@ namespace MarketAlly.Maui.ViewEngine
 {
 	public partial class WebViewHandler : Microsoft.Maui.Handlers.WebViewHandler
 	{
+		private PageRawData _cachedRawData;
+
 		public WebViewHandler() : base(Mapper)
 		{
 		}
@@ -58,9 +60,46 @@ namespace MarketAlly.Maui.ViewEngine
 		}
 
 		/// <summary>
+		/// Extracts routes on-demand from the cached raw data or re-extracts from the page.
+		/// </summary>
+		public async Task<PageData> ExtractRoutesAsync()
+		{
+			// If we have cached raw data, use it
+			if (_cachedRawData != null)
+			{
+				var webView = VirtualView as WebView;
+				int maxRoutes = webView?.MaxRoutes ?? 100;
+
+				var routes = PageDataExtractor.CreateBasicRoutes(_cachedRawData.Links, maxRoutes);
+				var bodyRoutes = PageDataExtractor.CreateBasicRoutes(_cachedRawData.BodyLinks, maxRoutes);
+
+				var pageData = new PageData
+				{
+					Title = _cachedRawData.Title ?? "Untitled",
+					Body = !string.IsNullOrEmpty(_cachedRawData.Body) ? DecodeBase64(_cachedRawData.Body) : string.Empty,
+					Url = _cachedRawData.Url ?? string.Empty,
+					Routes = routes,
+					BodyRoutes = bodyRoutes
+				};
+
+				// Process ad detection asynchronously in background
+				_ = Task.Run(async () =>
+				{
+					await PageDataExtractor.ProcessAdsAsync(routes, _cachedRawData.Url);
+					await PageDataExtractor.ProcessAdsAsync(bodyRoutes, _cachedRawData.Url);
+				});
+
+				return pageData;
+			}
+
+			// No cached data, extract fresh from page
+			return await ExtractPageDataAsync(forceRouteExtraction: true);
+		}
+
+		/// <summary>
 		/// Platform-specific method to execute JavaScript and extract page data.
 		/// </summary>
-		public partial Task<PageData> ExtractPageDataAsync();
+		public partial Task<PageData> ExtractPageDataAsync(bool forceRouteExtraction = false);
 
 		public string DecodeBase64(string base64String)
 		{
@@ -278,6 +317,8 @@ namespace MarketAlly.Maui.ViewEngine
 		public bool IsPotentialAd { get; set; }
 		public string AdReason { get; set; }
 		public List<string> AllTexts { get; set; } = new List<string>();
+		public bool IsAdProcessed { get; set; } = false;
+		internal List<LinkData> _linkInstances { get; set; }
 	}
 
 	public class PageRawData
@@ -404,35 +445,13 @@ namespace MarketAlly.Maui.ViewEngine
                 return JSON.stringify(pageData);
             })();";
 
-		public static List<RouteInfo> ProcessLinks(List<LinkData> links, string currentPageUrl)
+		/// <summary>
+		/// Fast method to create basic routes without ad detection (lazy processing)
+		/// </summary>
+		public static List<RouteInfo> CreateBasicRoutes(List<LinkData> links, int maxRoutes = 100)
 		{
 			if (links == null || links.Count == 0)
 				return new List<RouteInfo>();
-
-			// More specific class/ID patterns that indicate ads
-			var adClassIdPatterns = new[] {
-				@"\bad[_-]?\b", @"\bads[_-]?\b", @"\badvert", @"\bsponsored\b",
-				@"\bpromo[_-]", @"\bbanner[_-]", @"\baffiliate\b",
-				@"\bad[_-]slot\b", @"\bad[_-]unit\b", @"\bad[_-]container\b",
-				@"\bgoogle[_-]?ad\b", @"\bdfp[_-]", @"\bad[_-]leaderboard\b"
-			};
-
-			// Known ad network domains
-			var adDomains = new[] {
-				"doubleclick.net", "googlesyndication.com", "googleadservices.com",
-				"amazon-adsystem.com", "adnxs.com", "outbrain.com", "taboola.com",
-				"criteo.com", "pubmatic.com", "rubiconproject.com", "openx.net",
-				"advertising.com", "adroll.com", "adsrvr.org", "adsystem.com",
-				"bidswitch.net", "casalemedia.com", "quantserve.com"
-			};
-
-			// Tracking/affiliate URL patterns
-			var trackingPatterns = new[] {
-				@"[?&]utm_source=", @"[?&]utm_medium=", @"[?&]utm_campaign=",
-				@"[?&]aff(?:iliate)?[_-]?id=", @"[?&]ref(?:erral)?[_-]?id=",
-				@"[?&]click[_-]?id=", @"[?&]tracking[_-]?id=",
-				@"[?&]partner[_-]?id=", @"[?&]fbclid=", @"[?&]gclid="
-			};
 
 			// Group links by URL to detect duplicates
 			var linksByUrl = new Dictionary<string, List<LinkData>>(StringComparer.OrdinalIgnoreCase);
@@ -445,9 +464,15 @@ namespace MarketAlly.Maui.ViewEngine
 				linksByUrl[link.Href].Add(link);
 			}
 
-			// Process each unique URL
+			// Apply limit early if specified
+			var urlGroups = maxRoutes > 0
+				? linksByUrl.Take(maxRoutes).ToList()
+				: linksByUrl.ToList();
+
 			var routes = new List<RouteInfo>();
-			foreach (var urlGroup in linksByUrl)
+			int rank = 1;
+
+			foreach (var urlGroup in urlGroups)
 			{
 				var url = urlGroup.Key;
 				var linkInstances = urlGroup.Value;
@@ -458,40 +483,85 @@ namespace MarketAlly.Maui.ViewEngine
 					Url = url,
 					Text = firstInstance.Text,
 					Occurrences = linkInstances.Count,
+					Rank = rank++,
 					AllTexts = linkInstances
 						.Select(l => l.Text)
 						.Where(t => !string.IsNullOrWhiteSpace(t))
 						.Distinct()
-						.ToList()
+						.ToList(),
+					IsAdProcessed = false,
+					_linkInstances = linkInstances // Store for later ad processing
 				};
 
+				routes.Add(routeInfo);
+			}
+
+			return routes;
+		}
+
+		/// <summary>
+		/// Async method to detect ads on already-created routes (lazy ad detection)
+		/// </summary>
+		public static async Task ProcessAdsAsync(List<RouteInfo> routes, string currentPageUrl)
+		{
+			if (routes == null || routes.Count == 0)
+				return;
+
+			const int batchSize = 25;
+
+			// Simplified ad detection patterns (faster)
+			var adClassIdPatterns = new[] {
+				@"\bad[_-]?\b", @"\bads[_-]?\b", @"\bsponsored\b",
+				@"\bpromo[_-]", @"\bgoogle[_-]?ad\b"
+			};
+
+			// Known ad network domains (reduced set)
+			var adDomains = new[] {
+				"doubleclick.net", "googlesyndication.com", "googleadservices.com",
+				"amazon-adsystem.com", "outbrain.com", "taboola.com"
+			};
+
+			// Tracking/affiliate URL patterns (reduced set)
+			var trackingPatterns = new[] {
+				@"[?&]aff(?:iliate)?[_-]?id=", @"[?&]ref(?:erral)?[_-]?id=",
+				@"[?&]fbclid=", @"[?&]gclid="
+			};
+
+			int processedCount = 0;
+			foreach (var routeInfo in routes)
+			{
+				if (routeInfo.IsAdProcessed || routeInfo._linkInstances == null)
+					continue;
+
+				var linkInstances = routeInfo._linkInstances;
+				var url = routeInfo.Url;
 				var reasons = new List<string>();
 				int adScore = 0;
 
-				// Analyze all instances to determine if it's an ad
+				// Analyze link instances for ad indicators
 				foreach (var link in linkInstances)
 				{
-					// Check for rel="sponsored" - very strong indicator
-					if (!string.IsNullOrEmpty(link.Rel))
+					// Check for rel="sponsored"
+					if (!string.IsNullOrEmpty(link.Rel) && link.Rel.Contains("sponsored", StringComparison.OrdinalIgnoreCase))
 					{
-						if (link.Rel.Contains("sponsored", StringComparison.OrdinalIgnoreCase))
-						{
-							adScore += 10;
-							if (!reasons.Contains("Rel=sponsored"))
-								reasons.Add("Rel=sponsored");
-						}
+						adScore += 10;
+						if (!reasons.Contains("Rel=sponsored"))
+							reasons.Add("Rel=sponsored");
 					}
 
-					// Check class and ID for ad-specific patterns
+					// Check class and ID for ad patterns (simplified)
 					var classId = $"{link.Classes} {link.Id}".ToLowerInvariant();
-					foreach (var pattern in adClassIdPatterns)
+					if (!string.IsNullOrEmpty(classId))
 					{
-						if (System.Text.RegularExpressions.Regex.IsMatch(classId, pattern, System.Text.RegularExpressions.RegexOptions.IgnoreCase))
+						foreach (var pattern in adClassIdPatterns)
 						{
-							adScore += 5;
-							if (!reasons.Contains("Ad-related CSS class/ID"))
-								reasons.Add("Ad-related CSS class/ID");
-							break;
+							if (System.Text.RegularExpressions.Regex.IsMatch(classId, pattern))
+							{
+								adScore += 5;
+								if (!reasons.Contains("Ad CSS"))
+									reasons.Add("Ad CSS");
+								break;
+							}
 						}
 					}
 				}
@@ -505,7 +575,7 @@ namespace MarketAlly.Maui.ViewEngine
 						if (uri.Host.Contains(domain, StringComparison.OrdinalIgnoreCase))
 						{
 							adScore += 10;
-							reasons.Add($"Ad network: {domain}");
+							reasons.Add("Ad domain");
 							break;
 						}
 					}
@@ -515,58 +585,47 @@ namespace MarketAlly.Maui.ViewEngine
 				// Check for tracking/affiliate parameters
 				foreach (var pattern in trackingPatterns)
 				{
-					if (System.Text.RegularExpressions.Regex.IsMatch(url, pattern, System.Text.RegularExpressions.RegexOptions.IgnoreCase))
+					if (System.Text.RegularExpressions.Regex.IsMatch(url, pattern))
 					{
 						adScore += 3;
-						if (!reasons.Contains("Tracking parameters"))
-							reasons.Add("Tracking parameters");
+						if (!reasons.Contains("Tracking"))
+							reasons.Add("Tracking");
 						break;
 					}
 				}
 
-				// Check for suspicious text patterns (common ad text)
-				foreach (var text in routeInfo.AllTexts)
-				{
-					var textLower = text.ToLowerInvariant();
-					var adTextPatterns = new[] {
-						"sponsored", "advertisement", "promoted", "partner content",
-						"buy now", "shop now", "limited time", "click here"
-					};
-
-					foreach (var adText in adTextPatterns)
-					{
-						if (textLower.Contains(adText))
-						{
-							adScore += 2;
-							if (!reasons.Contains($"Ad text: '{adText}'"))
-								reasons.Add($"Ad text: '{adText}'");
-							break;
-						}
-					}
-				}
-
-				// Only flag as ad if score is high enough (reduces false positives)
+				// Mark as ad if score is high enough
 				if (adScore >= 5)
 				{
 					routeInfo.IsPotentialAd = true;
 					routeInfo.AdReason = $"Score: {adScore} - {string.Join(", ", reasons)}";
 				}
 
-				routes.Add(routeInfo);
+				routeInfo.IsAdProcessed = true;
+				routeInfo._linkInstances = null; // Free memory
+
+				// Yield to UI thread every batch
+				processedCount++;
+				if (processedCount % batchSize == 0)
+				{
+					await Task.Delay(1);
+				}
 			}
 
-			// Re-rank: prioritize non-ads and internal links
-			routes = routes.OrderBy(r => r.IsPotentialAd ? 1 : 0)
-						   .ThenBy(r => r.Url.StartsWith(currentPageUrl) ? 0 : 1)
-						   .ToList();
+			// Re-rank routes: prioritize non-ads and internal links
+			var sortedRoutes = routes
+				.OrderBy(r => r.IsPotentialAd ? 1 : 0)
+				.ThenBy(r => r.Url.StartsWith(currentPageUrl, StringComparison.OrdinalIgnoreCase) ? 0 : 1)
+				.ToList();
 
-			// Update ranks after sorting
-			for (int i = 0; i < routes.Count; i++)
+			// Update ranks
+			for (int i = 0; i < sortedRoutes.Count; i++)
 			{
-				routes[i].Rank = i + 1;
+				sortedRoutes[i].Rank = i + 1;
 			}
 
-			return routes;
+			routes.Clear();
+			routes.AddRange(sortedRoutes);
 		}
 	}
 }

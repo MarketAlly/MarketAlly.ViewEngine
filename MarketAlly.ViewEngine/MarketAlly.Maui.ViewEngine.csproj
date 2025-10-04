@@ -24,20 +24,23 @@
   <PropertyGroup>
     <GeneratePackageOnBuild>true</GeneratePackageOnBuild>
     <PackageId>MarketAlly.ViewEngine</PackageId>
-    <Version>1.1.0</Version>
+    <Version>1.1.1</Version>
     <Authors>David H Friedel Jr</Authors>
     <Company>MarketAlly</Company>
     <Product>MarketAlly.Maui.ViewEngine</Product>
 
     <Title>Advanced .NET MAUI WebView with Content Monitoring</Title>
     <Description>
-      Enhanced .NET MAUI WebView control with advanced browser capabilities, real-time content monitoring, and PDF processing. Features include custom user-agent configuration, debounced DOM change detection, PDF handling, cookie management, and seamless cross-platform support for Android, iOS, and Windows.
+      Enhanced .NET MAUI WebView control with advanced browser capabilities, real-time content monitoring, and PDF processing. Features include custom user-agent configuration, debounced DOM change detection, on-demand link extraction, ad detection, PDF handling, cookie management, and seamless cross-platform support for Android, iOS, and Windows.
 
       Key Features:
       - Custom User-Agent and browser detection bypass
       - Real-time content monitoring with intelligent debouncing (1-second delay)
+      - On-demand route extraction - Zero performance impact by default (NEW in v1.1.1)
       - Automatic PDF download handling and text extraction
+      - Intelligent ad detection and filtering with scoring system (NEW in v1.1.1)
       - Link extraction with Routes (all page links) and BodyRoutes (content-only links)
+      - Configurable route limits (MaxRoutes) for performance optimization (NEW in v1.1.1)
       - Full cookie and storage support
       - WebRTC and WebGL compatibility
       - Cross-platform implementation (Android, iOS, Windows)
@@ -56,24 +59,30 @@
     <RepositoryUrl>https://github.com/MarketAlly/MarketAlly.ViewEngine</RepositoryUrl>
     <RepositoryType>git</RepositoryType>
 
-    <PackageTags>webview dotnet-maui maui custom-control browser pdf-handling content-monitoring dom-monitoring user-agent cookie-management webrtc webgl android ios windows cross-platform web-scraping content-extraction debouncing link-extraction</PackageTags>
+    <PackageTags>webview dotnet-maui maui custom-control browser pdf-handling content-monitoring dom-monitoring user-agent cookie-management webrtc webgl android ios windows cross-platform web-scraping content-extraction debouncing link-extraction ad-detection on-demand performance-optimization</PackageTags>
 
     <PackageReleaseNotes>
-      Version 1.1.0 (Stable Production Release):
-      - STABLE RELEASE: Production-ready with comprehensive testing and optimization
-      - Intelligent debouncing (1-second delay) prevents excessive PageDataChanged events from rapid DOM mutations
-      - Fixed Android PageDataChanged event triggering - uses MAUI's cross-platform Navigated event for reliability
-      - Enhanced link extraction with Routes (all page links) and BodyRoutes (content-specific links)
-      - Removed all debug logging for clean production output
-      - Optimized content monitoring scripts across all platforms (Android, iOS, Windows)
-      - Comprehensive documentation with Routes/BodyRoutes usage examples
-      - Enhanced performance and stability for production environments
-      - Full cross-platform parity (Android, iOS, Windows)
+      Version 1.1.1 (Performance Optimization Release):
+      - BREAKING CHANGE: Routes are NOT extracted by default (EnableRouteExtraction=false) - ZERO performance impact on PageDataChanged
+      - NEW: ExtractRoutesAsync() method for on-demand route extraction when needed
+      - NEW: EnableRouteExtraction property - set to true for automatic extraction (original v1.1.0 behavior)
+      - NEW: MaxRoutes property limits route processing (default: 100, prevents lockups on pages with 1000+ links)
+      - NEW: Intelligent ad detection with scoring system (rel=sponsored, ad domains, tracking params, CSS classes)
+      - NEW: RouteInfo.IsPotentialAd and AdReason properties for filtering advertisements
+      - NEW: Async ad detection runs in background batches without blocking UI
+      - NEW: Raw link data caching for instant on-demand extraction
+      - PERFORMANCE: Eliminated route processing lockups on link-heavy pages
+      - PERFORMANCE: Batched async processing with UI thread yielding
+      - OPTIMIZATION: Memory management - cached data freed after ad processing
+      - Enhanced RouteInfo with Rank, Occurrences, AllTexts, and ad detection properties
+      - Fully backward compatible - existing apps continue to work (routes will be empty by default)
 
-      Breaking Changes from 1.0.x:
-      - None - fully backward compatible
+      Migration Guide:
+      - To restore v1.1.0 behavior: Set EnableRouteExtraction="true" on your WebView
+      - Recommended: Keep EnableRouteExtraction="false" and call ExtractRoutesAsync() on-demand for best performance
 
       Previous versions:
+      - 1.1.0: Stable production release with debouncing and enhanced link extraction
       - 1.0.x: Initial releases with content monitoring, PDF handling, and custom user-agent support
     </PackageReleaseNotes>
 

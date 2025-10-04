@@ -8,6 +8,12 @@ namespace MarketAlly.Maui.ViewEngine
 		public static readonly BindableProperty UserAgentProperty =
 			BindableProperty.Create(nameof(UserAgent), typeof(string), typeof(WebView), default(string));
 
+		public static readonly BindableProperty MaxRoutesProperty =
+			BindableProperty.Create(nameof(MaxRoutes), typeof(int), typeof(WebView), 100);
+
+		public static readonly BindableProperty EnableRouteExtractionProperty =
+			BindableProperty.Create(nameof(EnableRouteExtraction), typeof(bool), typeof(WebView), false);
+
 		public WebView()
 		{
 			// Use both Loaded and HandlerChanged for maximum compatibility
@@ -122,6 +128,28 @@ namespace MarketAlly.Maui.ViewEngine
 		}
 
 		/// <summary>
+		/// Maximum number of routes to return in Routes and BodyRoutes collections.
+		/// Default is 100. Set to -1 for unlimited (not recommended for large pages).
+		/// Only applies when EnableRouteExtraction is true or ExtractRoutesAsync() is called.
+		/// </summary>
+		public int MaxRoutes
+		{
+			get => (int)GetValue(MaxRoutesProperty);
+			set => SetValue(MaxRoutesProperty, value);
+		}
+
+		/// <summary>
+		/// When false (default), Routes and BodyRoutes will be empty on PageDataChanged.
+		/// Call ExtractRoutesAsync() to extract links on-demand for better performance.
+		/// Set to true to automatically extract routes on every page load.
+		/// </summary>
+		public bool EnableRouteExtraction
+		{
+			get => (bool)GetValue(EnableRouteExtractionProperty);
+			set => SetValue(EnableRouteExtractionProperty, value);
+		}
+
+		/// <summary>
 		/// Fetches the page's title, body, and meta description.
 		/// </summary>
 		public async Task<PageData> GetPageDataAsync()
@@ -129,6 +157,21 @@ namespace MarketAlly.Maui.ViewEngine
 			if (Handler is WebViewHandler customHandler)
 			{
 				return await customHandler.GetPageDataAsync();
+			}
+
+			return new PageData { Title = "Error", Body = "WebView handler is not available." };
+		}
+
+		/// <summary>
+		/// Extracts routes on-demand from the current page.
+		/// Returns the current PageData with Routes and BodyRoutes populated.
+		/// Use this when EnableRouteExtraction is false for better performance.
+		/// </summary>
+		public async Task<PageData> ExtractRoutesAsync()
+		{
+			if (Handler is WebViewHandler customHandler)
+			{
+				return await customHandler.ExtractRoutesAsync();
 			}
 
 			return new PageData { Title = "Error", Body = "WebView handler is not available." };

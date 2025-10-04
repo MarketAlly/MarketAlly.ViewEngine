@@ -9,7 +9,9 @@
 ✅ **Bypasses WebView detection techniques**
 ✅ **PageDataChanged event** - Automatically triggered on navigation and dynamic content changes
 ✅ **Intelligent content monitoring** with debounced DOM change detection
+✅ **On-demand route extraction** - Zero performance impact by default, extract links only when needed
 ✅ **Automatic PDF extraction** - Detects and extracts text from PDF URLs
+✅ **Ad detection and filtering** - Identifies potential ads with scoring system
 ✅ **Cross-platform JavaScript injection** for custom behaviors
 ✅ **Fully compatible with .NET MAUI**
 ✅ Works on **Android, iOS, and Windows**
@@ -62,6 +64,8 @@ Once registered, you can use `WebView` in **XAML** or **C#**.
     <viewengine:WebView
         Source="https://example.com"
         UserAgent="Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36"
+        EnableRouteExtraction="false"
+        MaxRoutes="100"
         PageDataChanged="WebView_PageDataChanged"/>
 </ContentPage>
 ```
@@ -148,6 +152,59 @@ public class Route
 }
 ```
 
+### **🔹 On-Demand Route Extraction (Recommended)**
+
+**NEW in v1.1.1:** Routes are **not extracted by default** for better performance. Extract them on-demand when needed:
+
+```csharp
+// Default behavior - Routes and BodyRoutes are empty (zero performance impact)
+webView.PageDataChanged += (sender, pageData) =>
+{
+    Console.WriteLine($"Title: {pageData.Title}");
+    Console.WriteLine($"Body: {pageData.Body}");
+    // Routes are empty here for performance
+};
+
+// Extract routes on-demand (e.g., when user clicks "Show Links" button)
+private async void ShowLinksButton_Clicked(object sender, EventArgs e)
+{
+    var pageData = await webView.ExtractRoutesAsync();
+
+    Console.WriteLine($"Total links: {pageData.Routes.Count}");
+    Console.WriteLine($"Content links: {pageData.BodyRoutes.Count}");
+
+    // Display links to user
+    foreach (var route in pageData.Routes)
+    {
+        Console.WriteLine($"{route.Rank}. {route.Text} -> {route.Url}");
+
+        if (route.IsPotentialAd)
+        {
+            Console.WriteLine($"   [AD DETECTED: {route.AdReason}]");
+        }
+    }
+}
+```
+
+### **🔹 Auto-Extract Routes (Original Behavior)**
+
+If you want routes extracted automatically on every page load:
+
+```xml
+<viewengine:WebView
+    EnableRouteExtraction="true"
+    MaxRoutes="100"
+    PageDataChanged="WebView_PageDataChanged"/>
+```
+
+```csharp
+webView.PageDataChanged += (sender, pageData) =>
+{
+    // Routes are automatically populated
+    Console.WriteLine($"Total links: {pageData.Routes.Count}");
+};
+```
+
 ### **🔹 Understanding Routes vs BodyRoutes**
 
 The WebView extracts links from the page in two different collections:
@@ -164,26 +221,65 @@ The WebView extracts links from the page in two different collections:
 - In-text citations
 - Useful for content-focused link analysis
 
+**RouteInfo** properties:
 ```csharp
-webView.PageDataChanged += (sender, pageData) =>
+public class RouteInfo
 {
-    // Get all navigation and content links
-    Console.WriteLine($"Total links found: {pageData.Routes.Count}");
-
-    // Get only links within the main content
-    Console.WriteLine($"Content links: {pageData.BodyRoutes.Count}");
-
-    // Example: Find external links in the content
-    var externalContentLinks = pageData.BodyRoutes
-        .Where(r => r.IsAbsolute && !r.Url.Contains(pageData.Url))
-        .ToList();
-
-    // Example: Get navigation menu items (links not in body)
-    var navigationLinks = pageData.Routes
-        .Except(pageData.BodyRoutes)
-        .ToList();
-};
+    public string Url { get; set; }              // Link URL
+    public string Text { get; set; }             // Link text
+    public int Rank { get; set; }                // Ranking (non-ads first)
+    public int Occurrences { get; set; }         // Times this URL appears
+    public bool IsPotentialAd { get; set; }      // Ad detection flag
+    public string AdReason { get; set; }         // Why flagged as ad
+    public List<string> AllTexts { get; set; }   // All text variations
+}
 ```
+
+### **🔹 Ad Detection**
+
+Routes are automatically analyzed for potential ads using:
+- `rel="sponsored"` attributes
+- Ad-related CSS classes/IDs
+- Known ad network domains
+- Tracking/affiliate parameters
+
+```csharp
+var pageData = await webView.ExtractRoutesAsync();
+
+// Filter out ads
+var regularLinks = pageData.Routes
+    .Where(r => !r.IsPotentialAd)
+    .ToList();
+
+// Get only ads
+var adLinks = pageData.Routes
+    .Where(r => r.IsPotentialAd)
+    .ToList();
+
+foreach (var ad in adLinks)
+{
+    Console.WriteLine($"Ad detected: {ad.Url}");
+    Console.WriteLine($"Reason: {ad.AdReason}");
+}
+```
+
+### **🔹 Performance Optimization**
+
+**MaxRoutes** limits the number of links processed (default: 100):
+
+```xml
+<!-- Limit to 50 links for faster processing -->
+<viewengine:WebView MaxRoutes="50" />
+
+<!-- Unlimited (not recommended for pages with 1000+ links) -->
+<viewengine:WebView MaxRoutes="-1" />
+```
+
+**Best Practices:**
+- Keep `EnableRouteExtraction="false"` (default) for best performance
+- Call `ExtractRoutesAsync()` only when user needs links
+- Use `MaxRoutes` to limit processing on link-heavy pages
+- Ad detection runs asynchronously in the background
 
 ### **🔹 Automatic PDF Detection and Extraction**
 The WebView automatically detects PDF URLs (by extension, content-type, or URL patterns) and extracts text content:
@@ -288,10 +384,14 @@ The PDF extraction happens automatically. You can identify PDF content in the `P
 
 ## **📌 Performance Considerations**
 
+- **On-Demand Routes (v1.1.1)**: Routes are NOT extracted by default - zero performance impact unless you call `ExtractRoutesAsync()`
+- **Route Limiting**: `MaxRoutes` property limits processing (default: 100 links)
+- **Async Ad Detection**: Ad detection runs in background batches without blocking UI
 - **Debouncing**: All content change events are debounced with a 1-second delay to prevent performance issues from rapid DOM mutations
 - **Selective Monitoring**: The DOM observer only watches specific attributes and significant changes
 - **Async Operations**: All page data extraction is asynchronous and timeout-protected (10-second timeout)
 - **PDF Handling**: PDFs are processed in parallel to avoid blocking the UI thread
+- **Memory Management**: Raw link data is cached for instant on-demand extraction, freed after ad processing
 
 ---
 

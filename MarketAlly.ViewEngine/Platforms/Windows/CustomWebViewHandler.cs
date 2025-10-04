@@ -277,7 +277,7 @@ namespace MarketAlly.Maui.ViewEngine
 			}
 		}
 
-		public async partial Task<PageData> ExtractPageDataAsync()
+		public async partial Task<PageData> ExtractPageDataAsync(bool forceRouteExtraction = false)
 		{
 			try
 			{
@@ -314,11 +314,35 @@ namespace MarketAlly.Maui.ViewEngine
 						PropertyNameCaseInsensitive = true
 					});
 
-					var bodyText = DecodeBase64(rawData.Body);
-					var routes = PageDataExtractor.ProcessLinks(rawData.Links, rawData.Url);
-					var bodyRoutes = PageDataExtractor.ProcessLinks(rawData.BodyLinks, rawData.Url);
+					// Cache raw data for on-demand route extraction
+					_cachedRawData = rawData;
 
-					return new PageData
+					var bodyText = DecodeBase64(rawData.Body);
+
+					// Check if route extraction is enabled or forced
+					var webView = VirtualView as WebView;
+					bool shouldExtractRoutes = forceRouteExtraction || (webView?.EnableRouteExtraction ?? false);
+
+					List<RouteInfo> routes = new List<RouteInfo>();
+					List<RouteInfo> bodyRoutes = new List<RouteInfo>();
+
+					if (shouldExtractRoutes)
+					{
+						int maxRoutes = webView?.MaxRoutes ?? 100;
+
+						// Use lazy processing: create basic routes immediately
+						routes = PageDataExtractor.CreateBasicRoutes(rawData.Links, maxRoutes);
+						bodyRoutes = PageDataExtractor.CreateBasicRoutes(rawData.BodyLinks, maxRoutes);
+
+						// Process ad detection asynchronously in background
+						_ = Task.Run(async () =>
+						{
+							await PageDataExtractor.ProcessAdsAsync(routes, rawData.Url);
+							await PageDataExtractor.ProcessAdsAsync(bodyRoutes, rawData.Url);
+						});
+					}
+
+					var pageData = new PageData
 					{
 						Title = rawData.Title,
 						Body = bodyText,
@@ -326,6 +350,8 @@ namespace MarketAlly.Maui.ViewEngine
 						Routes = routes,
 						BodyRoutes = bodyRoutes
 					};
+
+					return pageData;
 				}
 
 				return new PageData { Title = "No Content", Body = "Page content could not be retrieved." };

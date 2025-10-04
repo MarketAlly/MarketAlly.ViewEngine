@@ -189,7 +189,7 @@ namespace MarketAlly.Maui.ViewEngine
 				"Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36";
 		}
 
-		public async partial Task<PageData> ExtractPageDataAsync()
+		public async partial Task<PageData> ExtractPageDataAsync(bool forceRouteExtraction = false)
 		{
 			try
 			{
@@ -206,7 +206,7 @@ namespace MarketAlly.Maui.ViewEngine
 				if (completedTask == resultTask)
 				{
 					var result = await resultTask;
-					return ProcessHtmlResult(result?.ToString());
+					return ProcessHtmlResult(result?.ToString(), forceRouteExtraction);
 				}
 				else
 				{
@@ -219,7 +219,7 @@ namespace MarketAlly.Maui.ViewEngine
 			}
 		}
 
-		private PageData ProcessHtmlResult(string result)
+		private PageData ProcessHtmlResult(string result, bool forceRouteExtraction = false)
 		{
 			try
 			{
@@ -241,11 +241,35 @@ namespace MarketAlly.Maui.ViewEngine
 				if (rawData == null)
 					return new PageData { Title = "Error", Body = "Failed to deserialize page data." };
 
-				var bodyText = !string.IsNullOrEmpty(rawData.Body) ? DecodeBase64(rawData.Body) : string.Empty;
-				var routes = PageDataExtractor.ProcessLinks(rawData.Links, rawData.Url);
-				var bodyRoutes = PageDataExtractor.ProcessLinks(rawData.BodyLinks, rawData.Url);
+				// Cache raw data for on-demand route extraction
+				_cachedRawData = rawData;
 
-				return new PageData
+				var bodyText = !string.IsNullOrEmpty(rawData.Body) ? DecodeBase64(rawData.Body) : string.Empty;
+
+				// Check if route extraction is enabled or forced
+				var webView = VirtualView as WebView;
+				bool shouldExtractRoutes = forceRouteExtraction || (webView?.EnableRouteExtraction ?? false);
+
+				List<RouteInfo> routes = new List<RouteInfo>();
+				List<RouteInfo> bodyRoutes = new List<RouteInfo>();
+
+				if (shouldExtractRoutes)
+				{
+					int maxRoutes = webView?.MaxRoutes ?? 100;
+
+					// Use lazy processing: create basic routes immediately
+					routes = PageDataExtractor.CreateBasicRoutes(rawData.Links, maxRoutes);
+					bodyRoutes = PageDataExtractor.CreateBasicRoutes(rawData.BodyLinks, maxRoutes);
+
+					// Process ad detection asynchronously in background
+					_ = Task.Run(async () =>
+					{
+						await PageDataExtractor.ProcessAdsAsync(routes, rawData.Url);
+						await PageDataExtractor.ProcessAdsAsync(bodyRoutes, rawData.Url);
+					});
+				}
+
+				var pageData = new PageData
 				{
 					Title = rawData.Title ?? "Untitled",
 					Body = bodyText,
@@ -253,6 +277,8 @@ namespace MarketAlly.Maui.ViewEngine
 					Routes = routes,
 					BodyRoutes = bodyRoutes
 				};
+
+				return pageData;
 			}
 			catch (JsonException ex)
 			{
