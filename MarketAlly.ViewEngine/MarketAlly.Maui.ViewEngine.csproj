@@ -24,7 +24,7 @@
   <PropertyGroup>
     <GeneratePackageOnBuild>true</GeneratePackageOnBuild>
     <PackageId>MarketAlly.ViewEngine</PackageId>
-    <Version>1.0.5</Version>
+    <Version>1.1.0</Version>
     <Authors>David H Friedel Jr</Authors>
     <Company>MarketAlly</Company>
     <Product>MarketAlly.Maui.ViewEngine</Product>
@@ -37,6 +37,7 @@
       - Custom User-Agent and browser detection bypass
       - Real-time content monitoring with intelligent debouncing (1-second delay)
       - Automatic PDF download handling and text extraction
+      - Link extraction with Routes (all page links) and BodyRoutes (content-only links)
       - Full cookie and storage support
       - WebRTC and WebGL compatibility
       - Cross-platform implementation (Android, iOS, Windows)
@@ -55,19 +56,25 @@
     <RepositoryUrl>https://github.com/MarketAlly/MarketAlly.ViewEngine</RepositoryUrl>
     <RepositoryType>git</RepositoryType>
 
-    <PackageTags>webview dotnet-maui maui custom-control browser pdf-handling content-monitoring dom-monitoring user-agent cookie-management webrtc webgl android ios windows cross-platform web-scraping content-extraction debouncing</PackageTags>
+    <PackageTags>webview dotnet-maui maui custom-control browser pdf-handling content-monitoring dom-monitoring user-agent cookie-management webrtc webgl android ios windows cross-platform web-scraping content-extraction debouncing link-extraction</PackageTags>
 
     <PackageReleaseNotes>
-      Version 1.0.5 (Production Release):
-      - Added intelligent debouncing (1-second delay) to prevent excessive PageDataChanged events from rapid DOM mutations
-      - Fixed Android PageDataChanged event triggering - now uses MAUI's cross-platform Navigated event for reliability
-      - Removed all debug Console.WriteLine statements for production-ready clean output
+      Version 1.1.0 (Stable Production Release):
+      - STABLE RELEASE: Production-ready with comprehensive testing and optimization
+      - Intelligent debouncing (1-second delay) prevents excessive PageDataChanged events from rapid DOM mutations
+      - Fixed Android PageDataChanged event triggering - uses MAUI's cross-platform Navigated event for reliability
+      - Enhanced link extraction with Routes (all page links) and BodyRoutes (content-specific links)
+      - Removed all debug logging for clean production output
       - Optimized content monitoring scripts across all platforms (Android, iOS, Windows)
+      - Comprehensive documentation with Routes/BodyRoutes usage examples
       - Enhanced performance and stability for production environments
-      - Updated comprehensive documentation with all features and usage examples
+      - Full cross-platform parity (Android, iOS, Windows)
+
+      Breaking Changes from 1.0.x:
+      - None - fully backward compatible
 
       Previous versions:
-      - 1.0.4 and earlier: Initial releases with content monitoring, PDF handling, and custom user-agent support
+      - 1.0.x: Initial releases with content monitoring, PDF handling, and custom user-agent support
     </PackageReleaseNotes>
 
     <!-- Required dependencies -->
