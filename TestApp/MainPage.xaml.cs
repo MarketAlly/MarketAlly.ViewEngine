@@ -13,14 +13,12 @@ namespace TestApp
 		{
 			InitializeComponent();
 			UpdateSidebarVisibility();
-			Console.WriteLine("[MainPage] Constructor completed");
 		}
 
 		private async void urlEntry_Completed(object sender, EventArgs e)
 		{
 			if (!string.IsNullOrWhiteSpace(urlEntry.Text))
 			{
-				Console.WriteLine($"[MainPage] Setting webView.Source to: {urlEntry.Text}");
 				// The WebView control will automatically normalize the URL
 				webView.Source = urlEntry.Text;
 			}
@@ -28,13 +26,11 @@ namespace TestApp
 
 		private void webView_PageDataChanged(object sender, PageData e)
 		{
-			Console.WriteLine($"[MainPage] *** webView_PageDataChanged FIRED *** - Title: {e?.Title}, URL: {e?.Url}");
 			MainThread.BeginInvokeOnMainThread(() =>
 			{
 				_currentPageData = e;
 				titleEntry.Text = e.Title;
 				bodyEntry.Text = e.Body;
-				Console.WriteLine($"[MainPage] Updated UI with page data");
 			});
 		}
 
@@ -62,19 +58,16 @@ namespace TestApp
 		{
 			try
 			{
-				Console.WriteLine("[MainPage] RefreshData clicked - calling GetPageDataAsync");
 				var pageData = await webView.GetPageDataAsync();
 				if (pageData != null)
 				{
 					_currentPageData = pageData;
 					titleEntry.Text = pageData.Title;
 					bodyEntry.Text = pageData.Body;
-					Console.WriteLine($"[MainPage] Manually refreshed page data: {pageData.Title}");
 				}
 			}
 			catch (Exception ex)
 			{
-				Console.WriteLine($"[MainPage] Error refreshing data: {ex}");
 				await DisplayAlert("Error", $"Failed to refresh data: {ex.Message}", "OK");
 			}
 		}
@@ -173,7 +166,6 @@ namespace TestApp
 
 				if (!string.IsNullOrEmpty(url))
 				{
-					Console.WriteLine($"[MainPage] Navigating to selected link: {url}");
 					// Navigate to the selected link
 					webView.Source = url;
 					linksOverlay.IsVisible = false;

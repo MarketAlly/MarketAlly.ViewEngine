@@ -24,42 +24,42 @@ namespace MarketAlly.Maui.ViewEngine
 
 		private void OnNavigating(object sender, WebNavigatingEventArgs e)
 		{
-			Console.WriteLine($"[CustomWebView] Navigating to: {e.Url}");
 		}
 
-		private void OnNavigated(object sender, WebNavigatedEventArgs e)
+		private async void OnNavigated(object sender, WebNavigatedEventArgs e)
 		{
-			Console.WriteLine($"[CustomWebView] Navigated to: {e.Url}, Result: {e.Result}");
+
+			// Trigger page data extraction when navigation completes successfully
+			if (e.Result == WebNavigationResult.Success && Handler is WebViewHandler handler)
+			{
+				await Task.Delay(500); // Small delay to let page load
+				await handler.OnPageDataChangedAsync();
+			}
 		}
 
 		private void OnLoaded(object sender, EventArgs e)
 		{
-			Console.WriteLine($"[CustomWebView] OnLoaded - Handler type: {Handler?.GetType().FullName}");
 			SubscribeToHandlerEvents();
 		}
 
 		private void OnUnloaded(object sender, EventArgs e)
 		{
-			Console.WriteLine($"[CustomWebView] OnUnloaded");
 			UnsubscribeFromHandlerEvents();
 			PropertyChanged -= OnPropertyChanged;
 		}
 
 		private void OnHandlerChanging(object sender, HandlerChangingEventArgs e)
 		{
-			Console.WriteLine($"[CustomWebView] OnHandlerChanging - Old: {e.OldHandler?.GetType().FullName}, New: {e.NewHandler?.GetType().FullName}");
 
 			// Unsubscribe from old handler
 			if (e.OldHandler is WebViewHandler oldHandler)
 			{
-				Console.WriteLine("[CustomWebView] Unsubscribing from old handler");
 				oldHandler.PageDataChanged -= OnPageDataChanged;
 			}
 		}
 
 		private void OnHandlerChanged(object sender, EventArgs e)
 		{
-			Console.WriteLine($"[CustomWebView] OnHandlerChanged - Handler type: {Handler?.GetType().FullName}");
 			SubscribeToHandlerEvents();
 		}
 
@@ -67,13 +67,11 @@ namespace MarketAlly.Maui.ViewEngine
 		{
 			if (Handler is WebViewHandler handler)
 			{
-				Console.WriteLine("[CustomWebView] Handler IS WebViewHandler - subscribing to PageDataChanged");
 				handler.PageDataChanged -= OnPageDataChanged;
 				handler.PageDataChanged += OnPageDataChanged;
 			}
 			else
 			{
-				Console.WriteLine($"[CustomWebView] Handler is NOT WebViewHandler! It's: {Handler?.GetType().FullName}");
 			}
 		}
 
@@ -81,19 +79,16 @@ namespace MarketAlly.Maui.ViewEngine
 		{
 			if (Handler is WebViewHandler handler)
 			{
-				Console.WriteLine("[CustomWebView] Unsubscribing from handler events");
 				handler.PageDataChanged -= OnPageDataChanged;
 			}
 		}
 
 		private void OnPropertyChanged(object sender, System.ComponentModel.PropertyChangedEventArgs e)
 		{
-			Console.WriteLine($"[CustomWebView] PropertyChanged: {e.PropertyName}");
 
 			if (e.PropertyName == nameof(Source))
 			{
 				var sourceUrl = (Source as UrlWebViewSource)?.Url;
-				Console.WriteLine($"[CustomWebView] Source changed to: {sourceUrl}");
 				NormalizeSource();
 			}
 		}
@@ -109,7 +104,6 @@ namespace MarketAlly.Maui.ViewEngine
 				    !url.StartsWith("https://", StringComparison.OrdinalIgnoreCase) &&
 				    !url.StartsWith("file://", StringComparison.OrdinalIgnoreCase))
 				{
-					Console.WriteLine($"[CustomWebView] Normalizing URL from '{url}' to 'https://{url}'");
 					// Create new source with normalized URL
 					Source = new UrlWebViewSource { Url = "https://" + url };
 				}
@@ -118,8 +112,6 @@ namespace MarketAlly.Maui.ViewEngine
 
 		private void OnPageDataChanged(object sender, PageData pageData)
 		{
-			Console.WriteLine($"[CustomWebView] OnPageDataChanged called - Title: {pageData?.Title}, URL: {pageData?.Url}");
-			Console.WriteLine($"[CustomWebView] PageDataChanged event has {PageDataChanged?.GetInvocationList().Length ?? 0} subscribers");
 			PageDataChanged?.Invoke(this, pageData);
 		}
 

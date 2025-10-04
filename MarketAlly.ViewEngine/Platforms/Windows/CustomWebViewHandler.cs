@@ -16,20 +16,25 @@ namespace MarketAlly.Maui.ViewEngine
 
 		private const string ContentMonitoringScript = @"
             (function() {
-                // Prevent multiple injections
                 if (window.__contentMonitorInjected) {
-                    console.log('Content monitor already injected');
                     return;
                 }
                 window.__contentMonitorInjected = true;
 
+                let debounceTimer = null;
+
                 function notifyContentChange() {
-                    chrome.webview.postMessage('contentChanged');
+                    if (debounceTimer) {
+                        clearTimeout(debounceTimer);
+                    }
+
+                    debounceTimer = setTimeout(() => {
+                        chrome.webview.postMessage('contentChanged');
+                        debounceTimer = null;
+                    }, 1000);
                 }
 
-                // Monitor DOM changes - optimized to watch only specific attributes
                 const observer = new MutationObserver((mutations) => {
-                    // Look for significant changes
                     const hasSignificantChanges = mutations.some(mutation =>
                         mutation.addedNodes.length > 0 ||
                         mutation.removedNodes.length > 0 ||
@@ -52,13 +57,10 @@ namespace MarketAlly.Maui.ViewEngine
                         attributeFilter: ['class', 'style', 'data-loaded']
                     });
 
-                    // Monitor clicks
                     document.addEventListener('click', () => {
-                        setTimeout(notifyContentChange, 500);
+                        notifyContentChange();
                     }, true);
                 }
-
-                console.log('Content monitoring script injected');
             })();";
 
 		private async Task InjectContentMonitoringScriptAsync()
@@ -67,13 +69,11 @@ namespace MarketAlly.Maui.ViewEngine
 			{
 				if (PlatformView?.CoreWebView2 != null)
 				{
-					Console.WriteLine("[Windows] Injecting content monitoring script");
 					await PlatformView.CoreWebView2.ExecuteScriptAsync(ContentMonitoringScript);
 				}
 			}
 			catch (Exception ex)
 			{
-				Console.WriteLine($"[Windows] Error injecting content monitoring script: {ex.Message}");
 			}
 		}
 
@@ -103,12 +103,10 @@ namespace MarketAlly.Maui.ViewEngine
 				_sourceChangedHandler = async (sender, args) =>
 				{
 					var currentUrl = platformView.CoreWebView2?.Source;
-					Console.WriteLine($"[Windows] Source changed to: {currentUrl}");
 
 					if (currentUrl != lastUrl)
 					{
 						lastUrl = currentUrl;
-						Console.WriteLine("[Windows] URL changed, updating page data...");
 
 						// Give the page a moment to update its content
 						await Task.Delay(500);
@@ -120,7 +118,6 @@ namespace MarketAlly.Maui.ViewEngine
 				// Setup message handler for content changes
 				_messageReceivedHandler = async (sender, args) =>
 				{
-					Console.WriteLine($"[Windows] Received content change message");
 					await OnPageDataChangedAsync();
 				};
 				platformView.CoreWebView2.WebMessageReceived += _messageReceivedHandler;
@@ -129,11 +126,9 @@ namespace MarketAlly.Maui.ViewEngine
 				_navigationStartingHandler = async (sender, args) =>
 				{
 					var url = args?.Uri;
-					Console.WriteLine($"[Windows] Navigation Starting to: {url}");
 
 					if (!string.IsNullOrEmpty(url) && IsPotentialPdfUrl(url))
 					{
-						Console.WriteLine("[Windows] PDF detected, reading content in parallel...");
 						// Don't cancel navigation, just process PDF in parallel
 						_ = Task.Run(async () => await HandlePotentialPdfUrl(url));
 					}
@@ -141,14 +136,23 @@ namespace MarketAlly.Maui.ViewEngine
 				platformView.CoreWebView2.NavigationStarting += _navigationStartingHandler;
 
 				// Inject monitoring script after each navigation completes
+				// Track if UserAgent has been set
+				bool userAgentSet = false;
+
 				_navigationCompletedHandler = async (sender, args) =>
 				{
 					var webView = sender as CoreWebView2;
-					Console.WriteLine($"[Windows] Navigation Completed: {webView?.Source}, IsSuccess: {args.IsSuccess}");
 
 					if (args.IsSuccess)
 					{
 						// Re-inject the content monitoring script after each navigation
+						// Set user agent on first successful navigation (when CoreWebView2 is fully ready)
+						if (!userAgentSet)
+						{
+							SetUserAgent(VirtualView?.UserAgent);
+							userAgentSet = true;
+						}
+
 						await InjectContentMonitoringScriptAsync();
 
 						// Trigger page data extraction
@@ -159,11 +163,10 @@ namespace MarketAlly.Maui.ViewEngine
 
 
 				// Set the User-Agent
-				SetUserAgent(VirtualView?.UserAgent);
+// SetUserAgent(VirtualView?.UserAgent); // Commented out - may cause crash if CoreWebView2 not fully ready
 			}
 			catch (Exception ex)
 			{
-				Console.WriteLine($"[Windows] Error in ConnectHandler: {ex}");
 			}
 		}
 
@@ -204,7 +207,6 @@ namespace MarketAlly.Maui.ViewEngine
 		{
 			try
 			{
-				Console.WriteLine("[Windows] Manually triggering page data update...");
 				if (PlatformView?.CoreWebView2 != null)
 				{
 					await PlatformView.CoreWebView2.ExecuteScriptAsync(@"
@@ -218,12 +220,10 @@ namespace MarketAlly.Maui.ViewEngine
 				}
 				else
 				{
-					Console.WriteLine("[Windows] CoreWebView2 not available");
 				}
 			}
 			catch (Exception ex)
 			{
-				Console.WriteLine($"[Windows] Error in ForcePageDataUpdate: {ex}");
 			}
 		}
 
@@ -240,24 +240,20 @@ namespace MarketAlly.Maui.ViewEngine
 
 		private async void OnDownloadStarting(CoreWebView2 sender, CoreWebView2DownloadStartingEventArgs args)
 		{
-			Console.WriteLine($"[Windows] Download starting: {args.DownloadOperation.Uri}");
 			var url = args.DownloadOperation.Uri;
 
 			if (IsPotentialPdfUrl(url))
 			{
-				Console.WriteLine("[Windows] PDF download detected");
 				args.Handled = true;
 				await HandlePotentialPdfUrl(url);
 			}
 			else if (args.ResultFilePath.EndsWith(".pdf", StringComparison.OrdinalIgnoreCase))
 			{
-				Console.WriteLine("[Windows] PDF file extension detected");
 				args.Handled = true;
 				await HandlePotentialPdfUrl(url);
 			}
 			else
 			{
-				Console.WriteLine($"[Windows] Non-PDF download: {args.ResultFilePath}");
 				Process.Start(new ProcessStartInfo(args.ResultFilePath) { UseShellExecute = true });
 				args.Cancel = false;
 			}
@@ -271,16 +267,13 @@ namespace MarketAlly.Maui.ViewEngine
 				{
 					PlatformView.CoreWebView2.Settings.UserAgent = userAgent ??
 						"Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36";
-					Console.WriteLine($"[Windows] User-Agent set to: {PlatformView.CoreWebView2.Settings.UserAgent}");
 				}
 				else
 				{
-					Console.WriteLine("[Windows] CoreWebView2 not ready, cannot set User-Agent");
 				}
 			}
 			catch (Exception ex)
 			{
-				Console.WriteLine($"[Windows] Error setting User-Agent: {ex.Message}");
 			}
 		}
 
@@ -302,7 +295,6 @@ namespace MarketAlly.Maui.ViewEngine
 
 				if (completedTask != scriptTask)
 				{
-					Console.WriteLine("[Windows] JavaScript execution timed out");
 					return new PageData { Title = "Timeout", Body = "Page data extraction timed out." };
 				}
 
@@ -340,14 +332,17 @@ namespace MarketAlly.Maui.ViewEngine
 			}
 			catch (JsonException ex)
 			{
-				Console.WriteLine($"[Windows] JSON parsing error: {ex.Message}");
 				return new PageData { Title = "Error", Body = $"Failed to parse page content: {ex.Message}" };
 			}
 			catch (Exception ex)
 			{
-				Console.WriteLine($"[Windows] Error extracting page data: {ex.Message}");
 				return new PageData { Title = "Error", Body = $"Failed to extract page data: {ex.Message}" };
 			}
+		}
+
+		public partial void EnsureCustomWebViewClient()
+		{
+			// Not needed on Windows - WebView2 uses event handlers instead
 		}
 
 	}

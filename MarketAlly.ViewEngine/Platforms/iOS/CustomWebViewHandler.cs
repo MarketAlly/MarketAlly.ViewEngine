@@ -12,18 +12,24 @@ namespace MarketAlly.Maui.ViewEngine
 
 		private const string ContentMonitoringScript = @"
             (function() {
-                // Prevent multiple injections
                 if (window.__contentMonitorInjected) {
-                    console.log('[iOS] Content monitor already injected');
                     return;
                 }
                 window.__contentMonitorInjected = true;
 
+                let debounceTimer = null;
+
                 function notifyContentChange() {
-                    window.webkit.messageHandlers.contentChanged.postMessage('contentChanged');
+                    if (debounceTimer) {
+                        clearTimeout(debounceTimer);
+                    }
+
+                    debounceTimer = setTimeout(() => {
+                        window.webkit.messageHandlers.contentChanged.postMessage('contentChanged');
+                        debounceTimer = null;
+                    }, 1000);
                 }
 
-                // Monitor DOM changes - optimized to watch only specific attributes
                 const observer = new MutationObserver((mutations) => {
                     const hasSignificantChanges = mutations.some(mutation =>
                         mutation.addedNodes.length > 0 ||
@@ -47,13 +53,10 @@ namespace MarketAlly.Maui.ViewEngine
                         attributeFilter: ['class', 'style', 'data-loaded']
                     });
 
-                    // Monitor clicks
                     document.addEventListener('click', () => {
-                        setTimeout(notifyContentChange, 500);
+                        notifyContentChange();
                     }, true);
                 }
-
-                console.log('[iOS] Content monitoring script injected');
             })();";
 
 		private async Task InjectContentMonitoringScriptAsync()
@@ -62,13 +65,11 @@ namespace MarketAlly.Maui.ViewEngine
 			{
 				if (PlatformView != null)
 				{
-					Console.WriteLine("[iOS] Injecting content monitoring script");
 					await PlatformView.EvaluateJavaScriptAsync(ContentMonitoringScript);
 				}
 			}
 			catch (Exception ex)
 			{
-				Console.WriteLine($"[iOS] Error injecting content monitoring script: {ex.Message}");
 			}
 		}
 
@@ -145,7 +146,6 @@ namespace MarketAlly.Maui.ViewEngine
 
 			public override async void DidFinishNavigation(WKWebView webView, WKNavigation navigation)
 			{
-				Console.WriteLine($"Navigated to: {webView.Url?.AbsoluteString}");
 
 				// Re-inject monitoring script after each navigation
 				await _handler.InjectContentMonitoringScriptAsync();
@@ -157,11 +157,9 @@ namespace MarketAlly.Maui.ViewEngine
 			public async override void DecidePolicy(WKWebView webView, WKNavigationAction navigationAction, Action<WKNavigationActionPolicy> decisionHandler)
 			{
 				var url = navigationAction.Request.Url?.AbsoluteString;
-				Console.WriteLine($"iOS deciding policy for URL: {url}");
 
 				if (_handler.IsPotentialPdfUrl(url))
 				{
-					Console.WriteLine("PDF detected, reading content in parallel...");
 					// Allow navigation to continue
 					decisionHandler(WKNavigationActionPolicy.Allow);
 
@@ -212,13 +210,11 @@ namespace MarketAlly.Maui.ViewEngine
 				}
 				else
 				{
-					Console.WriteLine("[iOS] JavaScript execution timed out");
 					return new PageData { Title = "Timeout", Body = "Page data extraction timed out." };
 				}
 			}
 			catch (Exception ex)
 			{
-				Console.WriteLine($"[iOS] Error extracting page data: {ex.Message}");
 				return new PageData { Title = "Error", Body = $"Failed to extract page data: {ex.Message}" };
 			}
 		}
@@ -260,12 +256,10 @@ namespace MarketAlly.Maui.ViewEngine
 			}
 			catch (JsonException ex)
 			{
-				Console.WriteLine($"[iOS] JSON parsing error: {ex.Message}");
 				return new PageData { Title = "Error", Body = $"Failed to parse JSON: {ex.Message}" };
 			}
 			catch (Exception ex)
 			{
-				Console.WriteLine($"[iOS] Error processing HTML result: {ex.Message}");
 				return new PageData { Title = "Error", Body = $"Failed to process HTML: {ex.Message}" };
 			}
 		}
@@ -273,6 +267,11 @@ namespace MarketAlly.Maui.ViewEngine
 		public partial async Task InjectJavaScriptAsync(string script)
 		{
 			await PlatformView.EvaluateJavaScriptAsync(script);
+		}
+
+		public partial void EnsureCustomWebViewClient()
+		{
+			// Not needed on iOS - WKWebView uses navigation delegate
 		}
 	}
 

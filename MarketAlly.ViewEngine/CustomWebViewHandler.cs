@@ -13,27 +13,41 @@ namespace MarketAlly.Maui.ViewEngine
 {
 	public partial class WebViewHandler : Microsoft.Maui.Handlers.WebViewHandler
 	{
-		public WebViewHandler() : base(Mapper) { }
+		public WebViewHandler() : base(Mapper)
+		{
+		}
 
 		public event EventHandler<PageData> PageDataChanged;
 
-		// Method to trigger the event
-		public async Task OnPageDataChangedAsync()
-		{
-			var pageData = await GetPageDataAsync();
-			PageDataChanged?.Invoke(this, pageData);
-		}
+	// Method to trigger the event
+	public async Task OnPageDataChangedAsync()
+	{
+		var pageData = await GetPageDataAsync();
+		PageDataChanged?.Invoke(this, pageData);
+	}
 
 		public static new IPropertyMapper<WebView, WebViewHandler> Mapper =
 			new PropertyMapper<WebView, WebViewHandler>(Microsoft.Maui.Handlers.WebViewHandler.Mapper)
 			{
-				[nameof(WebView.UserAgent)] = MapUserAgent
+				[nameof(WebView.UserAgent)] = MapUserAgent,
+				[nameof(WebView.Source)] = MapSource
 			};
 
 		public static void MapUserAgent(WebViewHandler handler, WebView view)
 		{
-			handler.SetUserAgent(view.UserAgent);
+// handler.SetUserAgent(view.UserAgent); // Commented out - causes crash on Windows, UserAgent set after first navigation
 		}
+
+		public static void MapSource(WebViewHandler handler, WebView view)
+		{
+			// Call the base mapper first to set the source
+			Microsoft.Maui.Handlers.WebViewHandler.MapSource(handler, view);
+
+			// Then ensure our custom WebViewClient is set (Android-specific)
+			handler.EnsureCustomWebViewClient();
+		}
+
+		public partial void EnsureCustomWebViewClient();
 
 		/// <summary>
 		/// Extracts key webpage details (title, body text, metadata) from the currently loaded WebView.
@@ -134,7 +148,6 @@ namespace MarketAlly.Maui.ViewEngine
 			}
 			catch (Exception ex)
 			{
-				Console.WriteLine($"Error processing PDF: {ex.Message}");
 			}
 		}
 
@@ -142,7 +155,6 @@ namespace MarketAlly.Maui.ViewEngine
 		{
 			if (string.IsNullOrEmpty(url)) return false;
 
-			Console.WriteLine($"Checking if URL is potential PDF: {url}");
 
 			// Common PDF URL patterns
 			var pdfPatterns = new[]
@@ -159,7 +171,6 @@ namespace MarketAlly.Maui.ViewEngine
 				System.Text.RegularExpressions.Regex.IsMatch(url, pattern,
 					System.Text.RegularExpressions.RegexOptions.IgnoreCase));
 
-			Console.WriteLine($"URL {url} is{(isPdf ? "" : " not")} a potential PDF");
 			return isPdf;
 		}
 
@@ -192,12 +203,10 @@ namespace MarketAlly.Maui.ViewEngine
 				catch (Exception ex) when (retryCount < maxRetries - 1)
 				{
 					retryCount++;
-					Console.WriteLine($"Error checking content type (attempt {retryCount}/{maxRetries}): {ex.Message}");
 					await Task.Delay(TimeSpan.FromSeconds(Math.Pow(2, retryCount))); // Exponential backoff
 				}
 				catch (Exception ex)
 				{
-					Console.WriteLine($"Error checking content type after {maxRetries} attempts: {ex.Message}");
 					// If we can't check content type, fall back to URL pattern
 					return IsPotentialPdfUrl(url);
 				}
@@ -229,12 +238,10 @@ namespace MarketAlly.Maui.ViewEngine
 				catch (Exception ex) when (retryCount < maxRetries - 1)
 				{
 					retryCount++;
-					Console.WriteLine($"Error downloading PDF (attempt {retryCount}/{maxRetries}): {ex.Message}");
 					await Task.Delay(TimeSpan.FromSeconds(Math.Pow(2, retryCount))); // Exponential backoff
 				}
 				catch (Exception ex)
 				{
-					Console.WriteLine($"Error downloading PDF after {maxRetries} attempts: {ex.Message}");
 					// Notify user of failure
 					var failureData = new PageData
 					{

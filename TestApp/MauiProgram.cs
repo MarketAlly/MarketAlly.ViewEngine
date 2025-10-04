@@ -7,26 +7,35 @@ namespace TestApp
 	{
 		public static MauiApp CreateMauiApp()
 		{
-			var builder = MauiApp.CreateBuilder();
-			builder
-				.UseMauiApp<App>()
-				.ConfigureFonts(fonts =>
+			try
+			{
+				var builder = MauiApp.CreateBuilder();
+
+				builder
+					.UseMauiApp<App>()
+					.ConfigureFonts(fonts =>
+					{
+						fonts.AddFont("OpenSans-Regular.ttf", "OpenSansRegular");
+						fonts.AddFont("OpenSans-Semibold.ttf", "OpenSansSemibold");
+					});
+
+				// Register Custom WebView Handler
+				builder.ConfigureMauiHandlers(handlers =>
 				{
-					fonts.AddFont("OpenSans-Regular.ttf", "OpenSansRegular");
-					fonts.AddFont("OpenSans-Semibold.ttf", "OpenSansSemibold");
+					handlers.AddHandler(typeof(MarketAlly.Maui.ViewEngine.WebView), typeof(MarketAlly.Maui.ViewEngine.WebViewHandler));
 				});
 
-			// Register Custom WebView Handler
-			builder.ConfigureMauiHandlers(handlers =>
-			{
-				handlers.AddHandler(typeof(MarketAlly.Maui.ViewEngine.WebView), typeof(WebViewHandler));
-			});
-
 #if DEBUG
-			builder.Logging.AddDebug();
+				builder.Logging.AddDebug();
 #endif
 
-			return builder.Build();
+				var app = builder.Build();
+				return app;
+			}
+			catch (Exception ex)
+			{
+				throw;
+			}
 		}
 	}
 }
