@@ -24,24 +24,25 @@
   <PropertyGroup>
     <GeneratePackageOnBuild>true</GeneratePackageOnBuild>
     <PackageId>MarketAlly.ViewEngine</PackageId>
-    <Version>1.0.4</Version>
+    <Version>1.0.5</Version>
     <Authors>David H Friedel Jr</Authors>
     <Company>MarketAlly</Company>
     <Product>MarketAlly.Maui.ViewEngine</Product>
 
     <Title>Advanced .NET MAUI WebView with Content Monitoring</Title>
     <Description>
-      Enhanced .NET MAUI WebView control with advanced browser capabilities, real-time content monitoring, and PDF processing. Features include custom user-agent configuration, DOM change detection, PDF handling, cookie management, and seamless cross-platform support for Android, iOS, and Windows.
+      Enhanced .NET MAUI WebView control with advanced browser capabilities, real-time content monitoring, and PDF processing. Features include custom user-agent configuration, debounced DOM change detection, PDF handling, cookie management, and seamless cross-platform support for Android, iOS, and Windows.
 
       Key Features:
       - Custom User-Agent and browser detection bypass
-      - Real-time content monitoring and DOM change detection
+      - Real-time content monitoring with intelligent debouncing (1-second delay)
       - Automatic PDF download handling and text extraction
       - Full cookie and storage support
       - WebRTC and WebGL compatibility
       - Cross-platform implementation (Android, iOS, Windows)
-      - Event-based content updates
+      - Event-based content updates via PageDataChanged event
       - JavaScript injection support
+      - Production-ready with optimized performance
 
       Perfect for applications requiring advanced web content interaction, monitoring, and processing.
     </Description>
@@ -54,16 +55,19 @@
     <RepositoryUrl>https://github.com/MarketAlly/MarketAlly.ViewEngine</RepositoryUrl>
     <RepositoryType>git</RepositoryType>
 
-    <PackageTags>webview dotnet-maui maui custom-control browser pdf-handling content-monitoring dom-monitoring user-agent cookie-management webrtc webgl android ios windows cross-platform web-scraping content-extraction</PackageTags>
+    <PackageTags>webview dotnet-maui maui custom-control browser pdf-handling content-monitoring dom-monitoring user-agent cookie-management webrtc webgl android ios windows cross-platform web-scraping content-extraction debouncing</PackageTags>
 
     <PackageReleaseNotes>
-      Version 1.0.1:
-      - Enhanced content monitoring with real-time DOM change detection
-      - Improved PDF handling and text extraction
-      - Added custom user-agent support
-      - Enhanced cross-platform compatibility
-      - Added JavaScript injection capabilities
-      - Improved cookie and storage management
+      Version 1.0.5 (Production Release):
+      - Added intelligent debouncing (1-second delay) to prevent excessive PageDataChanged events from rapid DOM mutations
+      - Fixed Android PageDataChanged event triggering - now uses MAUI's cross-platform Navigated event for reliability
+      - Removed all debug Console.WriteLine statements for production-ready clean output
+      - Optimized content monitoring scripts across all platforms (Android, iOS, Windows)
+      - Enhanced performance and stability for production environments
+      - Updated comprehensive documentation with all features and usage examples
+
+      Previous versions:
+      - 1.0.4 and earlier: Initial releases with content monitoring, PDF handling, and custom user-agent support
     </PackageReleaseNotes>
 
     <!-- Required dependencies -->
