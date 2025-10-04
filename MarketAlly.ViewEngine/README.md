@@ -76,9 +76,19 @@ private void WebView_PageDataChanged(object sender, PageData pageData)
     string url = pageData.Url;
     string metaDescription = pageData.MetaDescription;
 
-    // Access navigation links
-    var routes = pageData.Routes;
-    var bodyRoutes = pageData.BodyRoutes;
+    // Access all links found on the page (navigation, header, footer, etc.)
+    var allLinks = pageData.Routes;
+    foreach (var route in allLinks)
+    {
+        Console.WriteLine($"Link: {route.Text} -> {route.Url} (Absolute: {route.IsAbsolute})");
+    }
+
+    // Access links found specifically in the body content
+    var contentLinks = pageData.BodyRoutes;
+    foreach (var route in contentLinks)
+    {
+        Console.WriteLine($"Body Link: {route.Text} -> {route.Url}");
+    }
 }
 ```
 
@@ -136,6 +146,43 @@ public class Route
     public string Text { get; set; }     // Link text
     public bool IsAbsolute { get; set; } // Whether URL is absolute
 }
+```
+
+### **🔹 Understanding Routes vs BodyRoutes**
+
+The WebView extracts links from the page in two different collections:
+
+**Routes** - All links found anywhere on the page:
+- Navigation menus (header, sidebar, footer)
+- Buttons and action links
+- Body content links
+- Useful for discovering all possible navigation paths
+
+**BodyRoutes** - Links found specifically within the main content area:
+- Article links
+- Content references
+- In-text citations
+- Useful for content-focused link analysis
+
+```csharp
+webView.PageDataChanged += (sender, pageData) =>
+{
+    // Get all navigation and content links
+    Console.WriteLine($"Total links found: {pageData.Routes.Count}");
+
+    // Get only links within the main content
+    Console.WriteLine($"Content links: {pageData.BodyRoutes.Count}");
+
+    // Example: Find external links in the content
+    var externalContentLinks = pageData.BodyRoutes
+        .Where(r => r.IsAbsolute && !r.Url.Contains(pageData.Url))
+        .ToList();
+
+    // Example: Get navigation menu items (links not in body)
+    var navigationLinks = pageData.Routes
+        .Except(pageData.BodyRoutes)
+        .ToList();
+};
 ```
 
 ### **🔹 Automatic PDF Detection and Extraction**
