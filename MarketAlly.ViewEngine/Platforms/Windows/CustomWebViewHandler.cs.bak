@@ -157,6 +157,8 @@ namespace MarketAlly.Maui.ViewEngine
 				};
 				platformView.CoreWebView2.NavigationCompleted += _navigationCompletedHandler;
 
+				// Inject for initial page
+				await InjectContentMonitoringScriptAsync();
 
 				// Set the User-Agent
 				SetUserAgent(VirtualView?.UserAgent);
@@ -263,25 +265,17 @@ namespace MarketAlly.Maui.ViewEngine
 			}
 		}
 
-		public void SetUserAgent(string userAgent)
+		public async void SetUserAgent(string userAgent)
 		{
-			try
+			if (PlatformView.CoreWebView2 == null)
 			{
-				if (PlatformView?.CoreWebView2?.Settings != null)
-				{
-					PlatformView.CoreWebView2.Settings.UserAgent = userAgent ??
-						"Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36";
-					Console.WriteLine($"[Windows] User-Agent set to: {PlatformView.CoreWebView2.Settings.UserAgent}");
-				}
-				else
-				{
-					Console.WriteLine("[Windows] CoreWebView2 not ready, cannot set User-Agent");
-				}
+				// Wait for initialization
+				await PlatformView.EnsureCoreWebView2Async();
 			}
-			catch (Exception ex)
-			{
-				Console.WriteLine($"[Windows] Error setting User-Agent: {ex.Message}");
-			}
+
+			// Now set the User-Agent
+			PlatformView.CoreWebView2.Settings.UserAgent = userAgent ??
+				"Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36";
 		}
 
 		public async partial Task<PageData> ExtractPageDataAsync()

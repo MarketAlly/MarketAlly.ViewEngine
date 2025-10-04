@@ -1,4 +1,4 @@
-﻿using Android.Content;
+using Android.Content;
 using Android.Webkit;
 using Microsoft.Maui.Handlers;
 using System.Text.Json;
@@ -8,50 +8,29 @@ namespace MarketAlly.Maui.ViewEngine
 {
 	public partial class WebViewHandler
 	{
-		protected override void ConnectHandler(Android.Webkit.WebView platformView)
-		{
-			base.ConnectHandler(platformView);
+		private WebViewClient _webViewClient;
+		private CustomDownloadListener _downloadListener;
+		private WebViewJavaScriptInterface _jsInterface;
 
-			var settings = platformView.Settings;
-			settings.JavaScriptEnabled = true;
-			settings.DomStorageEnabled = true;
-
-			CookieManager.Instance.SetAcceptCookie(true);
-			CookieManager.Instance.SetAcceptThirdPartyCookies(platformView, true);
-
-			// Track the last URL
-			string lastUrl = string.Empty;
-
-			// Create a custom WebViewClient to monitor URL changes
-			platformView.SetWebViewClient(new WebViewClient(this, (url) =>
-			{
-				if (url != lastUrl)
-				{
-					lastUrl = url;
-					MainThread.BeginInvokeOnMainThread(async () =>
-					{
-						await Task.Delay(500); // Give content time to update
-						await OnPageDataChangedAsync();
-					});
-				}
-			}));
-
-			// Handle downloads
-			platformView.SetDownloadListener(new CustomDownloadListener(this));
-
-			// Inject the content monitoring script
-			platformView.EvaluateJavascript(@"
+		private const string ContentMonitoringScript = @"
         (function() {
+            // Prevent multiple injections
+            if (window.__contentMonitorInjected) {
+                console.log('[Android] Content monitor already injected');
+                return;
+            }
+            window.__contentMonitorInjected = true;
+
             function notifyContentChange() {
                 if (window.Android) {
                     window.Android.onContentChanged();
                 }
             }
 
-            // Monitor DOM changes
+            // Monitor DOM changes - optimized to watch only specific attributes
             const observer = new MutationObserver((mutations) => {
-                const hasSignificantChanges = mutations.some(mutation => 
-                    mutation.addedNodes.length > 0 || 
+                const hasSignificantChanges = mutations.some(mutation =>
+                    mutation.addedNodes.length > 0 ||
                     mutation.removedNodes.length > 0 ||
                     (mutation.target.id && (
                         mutation.target.id.includes('content') ||
@@ -65,44 +44,120 @@ namespace MarketAlly.Maui.ViewEngine
                 }
             });
 
-            observer.observe(document.body, {
-                childList: true,
-                subtree: true,
-                attributes: true
-            });
+            if (document.body) {
+                observer.observe(document.body, {
+                    childList: true,
+                    subtree: true,
+                    attributeFilter: ['class', 'style', 'data-loaded']
+                });
 
-            // Monitor clicks
-            document.addEventListener('click', () => {
-                setTimeout(notifyContentChange, 500);
-            }, true);
-        })();
-    ", null);
+                // Monitor clicks
+                document.addEventListener('click', () => {
+                    setTimeout(notifyContentChange, 500);
+                }, true);
+            }
+
+            console.log('[Android] Content monitoring script injected');
+        })();";
+
+		private void InjectContentMonitoringScript()
+		{
+			try
+			{
+				if (PlatformView != null)
+				{
+					Console.WriteLine("[Android] Injecting content monitoring script");
+					PlatformView.EvaluateJavascript(ContentMonitoringScript, null);
+				}
+			}
+			catch (Exception ex)
+			{
+				Console.WriteLine($"[Android] Error injecting content monitoring script: {ex.Message}");
+			}
+		}
+
+		protected override void ConnectHandler(Android.Webkit.WebView platformView)
+		{
+			base.ConnectHandler(platformView);
+
+			var settings = platformView.Settings;
+			settings.JavaScriptEnabled = true;
+			settings.DomStorageEnabled = true;
+
+			CookieManager.Instance.SetAcceptCookie(true);
+			CookieManager.Instance.SetAcceptThirdPartyCookies(platformView, true);
+
+			// Create a custom WebViewClient
+			_webViewClient = new WebViewClient(this);
+			platformView.SetWebViewClient(_webViewClient);
+
+			// Handle downloads
+			_downloadListener = new CustomDownloadListener(this);
+			platformView.SetDownloadListener(_downloadListener);
 
 			// Add JavaScript interface for content change notifications
-			platformView.AddJavascriptInterface(new WebViewJavaScriptInterface(this), "Android");
+			_jsInterface = new WebViewJavaScriptInterface(this);
+			platformView.AddJavascriptInterface(_jsInterface, "Android");
+		}
+
+		protected override void DisconnectHandler(Android.Webkit.WebView platformView)
+		{
+			if (platformView != null)
+			{
+				platformView.SetWebViewClient(null);
+				platformView.SetDownloadListener(null);
+				platformView.RemoveJavascriptInterface("Android");
+
+				_webViewClient?.Dispose();
+				_webViewClient = null;
+
+				_downloadListener?.Dispose();
+				_downloadListener = null;
+
+				_jsInterface?.Dispose();
+				_jsInterface = null;
+			}
+
+			base.DisconnectHandler(platformView);
 		}
 
 		public class WebViewClient : Android.Webkit.WebViewClient
 		{
 			private readonly WebViewHandler _handler;
-			private readonly Action<string> _onUrlChanged;
 
-			public WebViewClient(WebViewHandler handler, Action<string> onUrlChanged)
+			public WebViewClient(WebViewHandler handler)
 			{
 				_handler = handler;
-				_onUrlChanged = onUrlChanged;
 			}
 
-			public override void OnPageFinished(Android.Webkit.WebView view, string url)
+			public override async void OnPageFinished(Android.Webkit.WebView view, string url)
 			{
 				base.OnPageFinished(view, url);
-				_onUrlChanged(url);
+				Console.WriteLine($"Navigated to: {url}");
+
+				// Re-inject monitoring script after each page load
+				_handler.InjectContentMonitoringScript();
+
+				// Trigger page data extraction
+				await _handler.OnPageDataChangedAsync();
 			}
 
-			public override void DoUpdateVisitedHistory(Android.Webkit.WebView view, string url, bool isReload)
+			public override bool ShouldOverrideUrlLoading(Android.Webkit.WebView view, IWebResourceRequest request)
 			{
-				base.DoUpdateVisitedHistory(view, url, isReload);
-				_onUrlChanged(url);
+				var url = request.Url?.ToString();
+				Console.WriteLine($"Android checking URL: {url}");
+
+				if (_handler.IsPotentialPdfUrl(url))
+				{
+					Console.WriteLine("PDF detected, reading content in parallel...");
+					// Process PDF in parallel
+					MainThread.BeginInvokeOnMainThread(async () =>
+					{
+						await _handler.HandlePotentialPdfUrl(url);
+					});
+				}
+
+				return false; // Allow default navigation
 			}
 		}
 
@@ -118,6 +173,7 @@ namespace MarketAlly.Maui.ViewEngine
 			[Android.Webkit.JavascriptInterface]
 			public async void OnContentChanged()
 			{
+				Console.WriteLine("[Android] OnContentChanged called from JavaScript");
 				await _handler.OnPageDataChangedAsync();
 			}
 		}
@@ -135,43 +191,41 @@ namespace MarketAlly.Maui.ViewEngine
 
 		public async partial Task<PageData> ExtractPageDataAsync()
 		{
-			var webView = PlatformView as Android.Webkit.WebView;
-			if (webView == null)
-				return new PageData { Title = "Error", Body = "WebView not initialized." };
+			try
+			{
+				var webView = PlatformView as Android.Webkit.WebView;
+				if (webView == null)
+					return new PageData { Title = "Error", Body = "WebView not initialized." };
 
-			var script = @"
-                (function() {
-                    function toBase64(str) {
-                        try {
-                            return btoa(unescape(encodeURIComponent(str)));
-                        } catch (e) {
-                            return 'ERROR_ENCODING';
-                        }
-                    }
-                    
-                    let pageData = {
-                        title: document.title || '',
-                        html: toBase64(document.documentElement.outerHTML || '')
-                    };
+				var script = PageDataExtractor.ExtractScript;
 
-                    console.log('Extracted JSON:', JSON.stringify(pageData));
-                    return JSON.stringify(pageData);
-                })();";
+				var tcs = new TaskCompletionSource<string>();
+				using var cts = new CancellationTokenSource(TimeSpan.FromSeconds(10));
+				cts.Token.Register(() => tcs.TrySetCanceled());
 
-			var tcs = new TaskCompletionSource<string>();
-			webView.EvaluateJavascript(script, new ValueCallback(tcs));
-			var result = await tcs.Task;
+				webView.EvaluateJavascript(script, new ValueCallback(tcs));
+				var result = await tcs.Task;
 
-			return ProcessHtmlResult(result);
+				return ProcessHtmlResult(result);
+			}
+			catch (OperationCanceledException)
+			{
+				Console.WriteLine("[Android] JavaScript execution timed out");
+				return new PageData { Title = "Timeout", Body = "Page data extraction timed out." };
+			}
+			catch (Exception ex)
+			{
+				Console.WriteLine($"[Android] Error extracting page data: {ex.Message}");
+				return new PageData { Title = "Error", Body = $"Failed to extract page data: {ex.Message}" };
+			}
 		}
 
 		private PageData ProcessHtmlResult(string result)
 		{
-			if (string.IsNullOrWhiteSpace(result))
-				return new PageData { Title = "No Content", Body = "Empty HTML response." };
-
 			try
 			{
+				if (string.IsNullOrWhiteSpace(result))
+					return new PageData { Title = "No Content", Body = "Empty HTML response." };
 				// Trim invalid characters
 				result = result.Trim('"')
 						   .Replace("\\\"", "\"")
@@ -185,34 +239,32 @@ namespace MarketAlly.Maui.ViewEngine
 					PropertyNameCaseInsensitive = true
 				});
 
-				var bodyText = DecodeBase64(rawData.Html);
+				if (rawData == null)
+					return new PageData { Title = "Error", Body = "Failed to deserialize page data." };
+
+				var bodyText = !string.IsNullOrEmpty(rawData.Body) ? DecodeBase64(rawData.Body) : string.Empty;
+				var routes = PageDataExtractor.ProcessLinks(rawData.Links, rawData.Url);
+				var bodyRoutes = PageDataExtractor.ProcessLinks(rawData.BodyLinks, rawData.Url);
+
 				return new PageData
 				{
-					Title = rawData.Title,
+					Title = rawData.Title ?? "Untitled",
 					Body = bodyText,
-					Url = rawData.Url // Include URL in the response
+					Url = rawData.Url ?? string.Empty,
+					Routes = routes,
+					BodyRoutes = bodyRoutes
 				};
 			}
-			catch
+			catch (JsonException ex)
 			{
-				return new PageData { Title = "Error", Body = "Failed to parse HTML." };
+				Console.WriteLine($"[Android] JSON parsing error: {ex.Message}");
+				return new PageData { Title = "Error", Body = $"Failed to parse JSON: {ex.Message}" };
 			}
-		}
-	}
-
-	public class WebViewJavaScriptInterface : Java.Lang.Object
-	{
-		private readonly WebViewHandler _handler;
-
-		public WebViewJavaScriptInterface(WebViewHandler handler)
-		{
-			_handler = handler;
-		}
-
-		[Android.Webkit.JavascriptInterface]
-		public async void OnContentChange()
-		{
-			await _handler.OnPageDataChangedAsync();
+			catch (Exception ex)
+			{
+				Console.WriteLine($"[Android] Error processing HTML result: {ex.Message}");
+				return new PageData { Title = "Error", Body = $"Failed to process HTML: {ex.Message}" };
+			}
 		}
 	}
 
@@ -228,41 +280,6 @@ namespace MarketAlly.Maui.ViewEngine
 		public void OnReceiveValue(Java.Lang.Object value)
 		{
 			_tcs.TrySetResult(value?.ToString() ?? "{}");
-		}
-	}
-
-	public class WebViewClient : Android.Webkit.WebViewClient
-	{
-		private readonly WebViewHandler _handler;
-
-		public WebViewClient(WebViewHandler handler)
-		{
-			_handler = handler;
-		}
-
-		public override async void OnPageFinished(Android.Webkit.WebView view, string url)
-		{
-			base.OnPageFinished(view, url);
-			Console.WriteLine($"Navigated to: {url}");
-			await _handler.OnPageDataChangedAsync();
-		}
-
-		public override bool ShouldOverrideUrlLoading(Android.Webkit.WebView view, IWebResourceRequest request)
-		{
-			var url = request.Url?.ToString();
-			Console.WriteLine($"Android checking URL: {url}");
-
-			if (_handler.IsPotentialPdfUrl(url))
-			{
-				Console.WriteLine("PDF detected, reading content in parallel...");
-				// Process PDF in parallel
-				MainThread.BeginInvokeOnMainThread(async () =>
-				{
-					await _handler.HandlePotentialPdfUrl(url);
-				});
-			}
-
-			return false; // Allow default navigation
 		}
 	}
 

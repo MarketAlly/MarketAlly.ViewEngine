@@ -1,4 +1,4 @@
-﻿using Foundation;
+using Foundation;
 using System.Text.Json;
 using UIKit;
 using WebKit;
@@ -7,49 +7,26 @@ namespace MarketAlly.Maui.ViewEngine
 {
 	public partial class WebViewHandler
 	{
-		protected override void ConnectHandler(WKWebView platformView)
-		{
-			base.ConnectHandler(platformView);
+		private CustomNavigationDelegate _navigationDelegate;
+		private CustomScriptMessageHandler _scriptMessageHandler;
 
-			if (platformView is WKWebView webView)
-			{
-				string lastUrl = string.Empty;
-
-				// Create and set custom navigation delegate
-				var navigationDelegate = new CustomNavigationDelegate(this, (url) =>
-				{
-					if (url != lastUrl)
-					{
-						lastUrl = url;
-						MainThread.BeginInvokeOnMainThread(async () =>
-						{
-							await Task.Delay(500); // Give content time to update
-							await OnPageDataChangedAsync();
-						});
-					}
-				});
-
-				webView.NavigationDelegate = navigationDelegate;
-
-				// Configure WebView
-				webView.Configuration.Preferences.JavaScriptEnabled = true;
-				webView.Configuration.Preferences.JavaScriptCanOpenWindowsAutomatically = true;
-
-				// Add script message handler for content changes
-				webView.Configuration.UserContentController.AddScriptMessageHandler(
-					new CustomScriptMessageHandler(this), "contentObserver");
-
-				// Inject the content monitoring script
-				webView.EvaluateJavaScriptAsync(@"
+		private const string ContentMonitoringScript = @"
             (function() {
+                // Prevent multiple injections
+                if (window.__contentMonitorInjected) {
+                    console.log('[iOS] Content monitor already injected');
+                    return;
+                }
+                window.__contentMonitorInjected = true;
+
                 function notifyContentChange() {
-                    window.webkit.messageHandlers.contentObserver.postMessage('contentChanged');
+                    window.webkit.messageHandlers.contentChanged.postMessage('contentChanged');
                 }
 
-                // Monitor DOM changes
+                // Monitor DOM changes - optimized to watch only specific attributes
                 const observer = new MutationObserver((mutations) => {
-                    const hasSignificantChanges = mutations.some(mutation => 
-                        mutation.addedNodes.length > 0 || 
+                    const hasSignificantChanges = mutations.some(mutation =>
+                        mutation.addedNodes.length > 0 ||
                         mutation.removedNodes.length > 0 ||
                         (mutation.target.id && (
                             mutation.target.id.includes('content') ||
@@ -63,71 +40,77 @@ namespace MarketAlly.Maui.ViewEngine
                     }
                 });
 
-                observer.observe(document.body, {
-                    childList: true,
-                    subtree: true,
-                    attributes: true
-                });
+                if (document.body) {
+                    observer.observe(document.body, {
+                        childList: true,
+                        subtree: true,
+                        attributeFilter: ['class', 'style', 'data-loaded']
+                    });
 
-                // Monitor clicks
-                document.addEventListener('click', () => {
-                    setTimeout(notifyContentChange, 500);
-                }, true);
-            })();
-        ");
+                    // Monitor clicks
+                    document.addEventListener('click', () => {
+                        setTimeout(notifyContentChange, 500);
+                    }, true);
+                }
+
+                console.log('[iOS] Content monitoring script injected');
+            })();";
+
+		private async Task InjectContentMonitoringScriptAsync()
+		{
+			try
+			{
+				if (PlatformView != null)
+				{
+					Console.WriteLine("[iOS] Injecting content monitoring script");
+					await PlatformView.EvaluateJavaScriptAsync(ContentMonitoringScript);
+				}
+			}
+			catch (Exception ex)
+			{
+				Console.WriteLine($"[iOS] Error injecting content monitoring script: {ex.Message}");
 			}
 		}
 
-		public class CustomNavigationDelegate : WKNavigationDelegate
+		protected override void ConnectHandler(WKWebView platformView)
 		{
-			private readonly WebViewHandler _handler;
-			private readonly Action<string> _onUrlChanged;
+			base.ConnectHandler(platformView);
 
-			public CustomNavigationDelegate(WebViewHandler handler, Action<string> onUrlChanged)
+			if (platformView is WKWebView webView)
 			{
-				_handler = handler;
-				_onUrlChanged = onUrlChanged;
+				// Create and set custom navigation delegate
+				_navigationDelegate = new CustomNavigationDelegate(this);
+				webView.NavigationDelegate = _navigationDelegate;
+
+				// Configure WebView
+				webView.Configuration.Preferences.JavaScriptEnabled = true;
+				webView.Configuration.Preferences.JavaScriptCanOpenWindowsAutomatically = true;
+
+				// Add script message handler for content changes
+				_scriptMessageHandler = new CustomScriptMessageHandler(this);
+				webView.Configuration.UserContentController.AddScriptMessageHandler(
+					_scriptMessageHandler, "contentChanged");
 			}
+		}
 
-			public override void DidFinishNavigation(WKWebView webView, WKNavigation navigation)
+		protected override void DisconnectHandler(WKWebView platformView)
+		{
+			if (platformView != null)
 			{
-				_onUrlChanged(webView.Url?.AbsoluteString ?? string.Empty);
-			}
+				platformView.NavigationDelegate = null;
 
-			public override void DecidePolicy(WKWebView webView, WKNavigationAction navigationAction, Action<WKNavigationActionPolicy> decisionHandler)
-			{
-				var url = navigationAction.Request.Url.AbsoluteString;
-
-				if (url.EndsWith(".pdf", StringComparison.OrdinalIgnoreCase))
+				if (_scriptMessageHandler != null)
 				{
-					// Handle PDF download
-					Task.Run(async () =>
-					{
-						try
-						{
-							using (var client = new HttpClient())
-							{
-								var pdfData = await client.GetByteArrayAsync(url);
-								await _handler.HandlePdfDownload(pdfData, url);
-							}
-						}
-						catch (Exception ex)
-						{
-							Console.WriteLine($"Error downloading PDF: {ex.Message}");
-						}
-					});
-					decisionHandler(WKNavigationActionPolicy.Cancel);
-					return;
-				} else if (url.StartsWith("blob:") || url.EndsWith(".zip"))
-				{
-					UIApplication.SharedApplication.OpenUrl(new NSUrl(url));
-					decisionHandler(WKNavigationActionPolicy.Cancel);
-					return;
+					platformView.Configuration?.UserContentController?.RemoveScriptMessageHandler("contentChanged");
+					_scriptMessageHandler?.Dispose();
+					_scriptMessageHandler = null;
 				}
 
-				_onUrlChanged(url);
-				decisionHandler(WKNavigationActionPolicy.Allow);
+				_navigationDelegate?.Dispose();
+				_navigationDelegate = null;
 			}
+
+			base.DisconnectHandler(platformView);
 		}
 
 		public class CustomScriptMessageHandler : NSObject, IWKScriptMessageHandler
@@ -141,12 +124,63 @@ namespace MarketAlly.Maui.ViewEngine
 
 			public void DidReceiveScriptMessage(WKUserContentController userContentController, WKScriptMessage message)
 			{
-				if (message.Body.ToString() == "contentChanged")
+				if (message.Name == "contentChanged")
 				{
 					MainThread.BeginInvokeOnMainThread(async () =>
 					{
 						await _handler.OnPageDataChangedAsync();
 					});
+				}
+			}
+		}
+
+		public class CustomNavigationDelegate : WKNavigationDelegate
+		{
+			private readonly WebViewHandler _handler;
+
+			public CustomNavigationDelegate(WebViewHandler handler)
+			{
+				_handler = handler;
+			}
+
+			public override async void DidFinishNavigation(WKWebView webView, WKNavigation navigation)
+			{
+				Console.WriteLine($"Navigated to: {webView.Url?.AbsoluteString}");
+
+				// Re-inject monitoring script after each navigation
+				await _handler.InjectContentMonitoringScriptAsync();
+
+				// Trigger page data extraction
+				await _handler.OnPageDataChangedAsync();
+			}
+
+			public async override void DecidePolicy(WKWebView webView, WKNavigationAction navigationAction, Action<WKNavigationActionPolicy> decisionHandler)
+			{
+				var url = navigationAction.Request.Url?.AbsoluteString;
+				Console.WriteLine($"iOS deciding policy for URL: {url}");
+
+				if (_handler.IsPotentialPdfUrl(url))
+				{
+					Console.WriteLine("PDF detected, reading content in parallel...");
+					// Allow navigation to continue
+					decisionHandler(WKNavigationActionPolicy.Allow);
+
+					// Process PDF in parallel
+					MainThread.BeginInvokeOnMainThread(async () =>
+					{
+						await _handler.HandlePotentialPdfUrl(url);
+					});
+					return;
+				}
+
+				if (navigationAction.TargetFrame == null || navigationAction.TargetFrame.MainFrame == false)
+				{
+					webView.LoadRequest(navigationAction.Request); // Load in the same WebView
+					decisionHandler(WKNavigationActionPolicy.Cancel);
+				}
+				else
+				{
+					decisionHandler(WKNavigationActionPolicy.Allow);
 				}
 			}
 		}
@@ -159,40 +193,42 @@ namespace MarketAlly.Maui.ViewEngine
 
 		public async partial Task<PageData> ExtractPageDataAsync()
 		{
-			var webView = PlatformView as WKWebView;
-			if (webView == null)
-				return new PageData { Title = "Error", Body = "WebView not initialized." };
+			try
+			{
+				var webView = PlatformView as WKWebView;
+				if (webView == null)
+					return new PageData { Title = "Error", Body = "WebView not initialized." };
 
-			var script = @"
-                (function() {
-                    function toBase64(str) {
-                        try {
-                            return btoa(unescape(encodeURIComponent(str)));
-                        } catch (e) {
-                            return 'ERROR_ENCODING';
-                        }
-                    }
-                    
-                    let pageData = {
-                        title: document.title || '',
-                        html: toBase64(document.documentElement.outerHTML || '')
-                    };
+				var script = PageDataExtractor.ExtractScript;
 
-                    console.log('Extracted JSON:', JSON.stringify(pageData));
-                    return JSON.stringify(pageData);
-                })();";
+				using var cts = new CancellationTokenSource(TimeSpan.FromSeconds(10));
+				var resultTask = webView.EvaluateJavaScriptAsync(script);
+				var completedTask = await Task.WhenAny(resultTask, Task.Delay(Timeout.Infinite, cts.Token));
 
-			var result = await webView.EvaluateJavaScriptAsync(script);
-			return ProcessHtmlResult(result?.ToString());
+				if (completedTask == resultTask)
+				{
+					var result = await resultTask;
+					return ProcessHtmlResult(result?.ToString());
+				}
+				else
+				{
+					Console.WriteLine("[iOS] JavaScript execution timed out");
+					return new PageData { Title = "Timeout", Body = "Page data extraction timed out." };
+				}
+			}
+			catch (Exception ex)
+			{
+				Console.WriteLine($"[iOS] Error extracting page data: {ex.Message}");
+				return new PageData { Title = "Error", Body = $"Failed to extract page data: {ex.Message}" };
+			}
 		}
 
 		private PageData ProcessHtmlResult(string result)
 		{
-			if (string.IsNullOrWhiteSpace(result))
-				return new PageData { Title = "No Content", Body = "Empty HTML response." };
-
 			try
 			{
+				if (string.IsNullOrWhiteSpace(result))
+					return new PageData { Title = "No Content", Body = "Empty HTML response." };
 				// Trim invalid characters
 				result = result.Trim('"')
 						   .Replace("\\\"", "\"")
@@ -206,17 +242,31 @@ namespace MarketAlly.Maui.ViewEngine
 					PropertyNameCaseInsensitive = true
 				});
 
-				var bodyText = DecodeBase64(rawData.Html);
+				if (rawData == null)
+					return new PageData { Title = "Error", Body = "Failed to deserialize page data." };
+
+				var bodyText = !string.IsNullOrEmpty(rawData.Body) ? DecodeBase64(rawData.Body) : string.Empty;
+				var routes = PageDataExtractor.ProcessLinks(rawData.Links, rawData.Url);
+				var bodyRoutes = PageDataExtractor.ProcessLinks(rawData.BodyLinks, rawData.Url);
+
 				return new PageData
 				{
-					Title = rawData.Title,
+					Title = rawData.Title ?? "Untitled",
 					Body = bodyText,
-					Url = rawData.Url // Include URL in the response
+					Url = rawData.Url ?? string.Empty,
+					Routes = routes,
+					BodyRoutes = bodyRoutes
 				};
 			}
-			catch
+			catch (JsonException ex)
 			{
-				return new PageData { Title = "Error", Body = "Failed to parse HTML." };
+				Console.WriteLine($"[iOS] JSON parsing error: {ex.Message}");
+				return new PageData { Title = "Error", Body = $"Failed to parse JSON: {ex.Message}" };
+			}
+			catch (Exception ex)
+			{
+				Console.WriteLine($"[iOS] Error processing HTML result: {ex.Message}");
+				return new PageData { Title = "Error", Body = $"Failed to process HTML: {ex.Message}" };
 			}
 		}
 
@@ -226,70 +276,4 @@ namespace MarketAlly.Maui.ViewEngine
 		}
 	}
 
-	public class CustomScriptMessageHandler : NSObject, IWKScriptMessageHandler
-	{
-		private readonly WebViewHandler _handler;
-
-		public CustomScriptMessageHandler(WebViewHandler handler)
-		{
-			_handler = handler;
-		}
-
-		public void DidReceiveScriptMessage(WKUserContentController userContentController, WKScriptMessage message)
-		{
-			if (message.Name == "contentChanged")
-			{
-				MainThread.BeginInvokeOnMainThread(async () =>
-				{
-					await _handler.OnPageDataChangedAsync();
-				});
-			}
-		}
 	}
-
-	public class CustomNavigationDelegate : WKNavigationDelegate
-	{
-		private readonly WebViewHandler _handler;
-
-		public CustomNavigationDelegate(WebViewHandler handler)
-		{
-			_handler = handler;
-		}
-
-		public override async void DidFinishNavigation(WKWebView webView, WKNavigation navigation)
-		{
-			Console.WriteLine($"Navigated to: {webView.Url?.AbsoluteString}");
-			await _handler.OnPageDataChangedAsync();
-		}
-
-		public async override void DecidePolicy(WKWebView webView, WKNavigationAction navigationAction, Action<WKNavigationActionPolicy> decisionHandler)
-		{
-			var url = navigationAction.Request.Url?.AbsoluteString;
-			Console.WriteLine($"iOS deciding policy for URL: {url}");
-
-			if (_handler.IsPotentialPdfUrl(url))
-			{
-				Console.WriteLine("PDF detected, reading content in parallel...");
-				// Allow navigation to continue
-				decisionHandler(WKNavigationActionPolicy.Allow);
-
-				// Process PDF in parallel
-				MainThread.BeginInvokeOnMainThread(async () =>
-				{
-					await _handler.HandlePotentialPdfUrl(url);
-				});
-				return;
-			}
-
-			if (navigationAction.TargetFrame == null || navigationAction.TargetFrame.MainFrame == false)
-			{
-				webView.LoadRequest(navigationAction.Request); // Load in the same WebView
-				decisionHandler(WKNavigationActionPolicy.Cancel);
-			}
-			else
-			{
-				decisionHandler(WKNavigationActionPolicy.Allow);
-			}
-		}
-	}
-}

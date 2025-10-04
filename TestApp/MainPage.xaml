@@ -4,6 +4,12 @@
              xmlns:local="clr-namespace:MarketAlly.Maui.ViewEngine;assembly=MarketAlly.Maui.ViewEngine"
              x:Class="TestApp.MainPage">
 
+    <ContentPage.ToolbarItems>
+        <ToolbarItem Text="Toggle" Clicked="ToggleSidebar_Clicked" />
+        <ToolbarItem Text="Refresh" Clicked="RefreshData_Clicked" />
+        <ToolbarItem Text="Links" Clicked="ShowLinks_Clicked" />
+    </ContentPage.ToolbarItems>
+
     <Grid>
         <Grid.RowDefinitions>
             <RowDefinition Height="Auto" />
@@ -11,20 +17,199 @@
         </Grid.RowDefinitions>
         <Grid.ColumnDefinitions>
             <ColumnDefinition Width="*" />
-            <ColumnDefinition Width="300" />
+            <ColumnDefinition x:Name="sideColumn" Width="300" />
         </Grid.ColumnDefinitions>
-        <Entry x:Name="urlEntry" Grid.Row="0" Placeholder="Enter URL" ReturnType="Go" Keyboard="Url" Completed="urlEntry_Completed" />
-        <local:WebView x:Name="webView"
-                             Grid.Row="1"
-                             PageDataChanged="webView_PageDataChanged"
-                             Source="https://www.w3schools.com/tags/tryit.asp?filename=tryhtml5_a_target"
-                             UserAgent="Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36" />
 
-        <Entry x:Name="titleEntry" Grid.Column="1" Grid.Row="0" />
-        <ScrollView Grid.Column="1" Grid.Row="1">
-            <Label x:Name="bodyEntry" BackgroundColor="White" TextColor="Black" />
-        </ScrollView>
-       
+        <!-- Links Modal Overlay -->
+        <Grid x:Name="linksOverlay"
+              Grid.Row="0"
+              Grid.RowSpan="2"
+              Grid.ColumnSpan="2"
+              IsVisible="False"
+              BackgroundColor="#80000000"
+              ZIndex="100">
+            <Grid.GestureRecognizers>
+                <TapGestureRecognizer Tapped="HideLinks_Clicked" />
+            </Grid.GestureRecognizers>
+
+            <Border BackgroundColor="White"
+                    Stroke="Gray"
+                    StrokeThickness="1"
+                    Margin="20"
+                    Padding="0"
+                    MaximumWidthRequest="800">
+                <Border.StrokeShape>
+                    <RoundRectangle CornerRadius="10" />
+                </Border.StrokeShape>
+
+                <Grid>
+                    <Grid.RowDefinitions>
+                        <RowDefinition Height="Auto" />
+                        <RowDefinition Height="*" />
+                        <RowDefinition Height="Auto" />
+                    </Grid.RowDefinitions>
+
+                    <!-- Header -->
+                    <Grid Grid.Row="0" BackgroundColor="#f0f0f0" Padding="15">
+                        <Grid.ColumnDefinitions>
+                            <ColumnDefinition Width="*" />
+                            <ColumnDefinition Width="Auto" />
+                            <ColumnDefinition Width="Auto" />
+                        </Grid.ColumnDefinitions>
+
+                        <Label Text="Page Links"
+                               Grid.Column="0"
+                               FontSize="18"
+                               FontAttributes="Bold"
+                               VerticalOptions="Center" />
+
+                        <HorizontalStackLayout Grid.Column="1"
+                                               Spacing="5"
+                                               Margin="0,0,10,0">
+                            <Button x:Name="allLinksButton"
+                                    Text="All"
+                                    BackgroundColor="#2196F3"
+                                    TextColor="White"
+                                    Padding="10,5"
+                                    Clicked="ShowAllLinks_Clicked" />
+                            <Button x:Name="bodyLinksButton"
+                                    Text="Body Only"
+                                    BackgroundColor="LightGray"
+                                    TextColor="Black"
+                                    Padding="10,5"
+                                    Clicked="ShowBodyLinks_Clicked" />
+                        </HorizontalStackLayout>
+
+                        <Button Text="✕"
+                                Grid.Column="2"
+                                BackgroundColor="Transparent"
+                                TextColor="Black"
+                                Clicked="HideLinks_Clicked" />
+                    </Grid>
+
+                    <!-- Links ListView -->
+                    <CollectionView x:Name="linksCollectionView"
+                                    Grid.Row="1"
+                                    Margin="10"
+                                    SelectionMode="Single"
+                                    SelectionChanged="LinkSelected">
+                        <CollectionView.ItemTemplate>
+                            <DataTemplate>
+                                <Border Padding="10"
+                                        Margin="5"
+                                        BackgroundColor="{Binding BackgroundColor}"
+                                        Stroke="LightGray"
+                                        StrokeThickness="1">
+                                    <Border.StrokeShape>
+                                        <RoundRectangle CornerRadius="5" />
+                                    </Border.StrokeShape>
+                                    <Grid>
+                                        <Grid.RowDefinitions>
+                                            <RowDefinition Height="Auto" />
+                                            <RowDefinition Height="Auto" />
+                                            <RowDefinition Height="Auto" />
+                                        </Grid.RowDefinitions>
+                                        <Grid.ColumnDefinitions>
+                                            <ColumnDefinition Width="Auto" />
+                                            <ColumnDefinition Width="*" />
+                                        </Grid.ColumnDefinitions>
+
+                                        <!-- Rank Badge -->
+                                        <Border Grid.Row="0"
+                                                Grid.RowSpan="3"
+                                                Grid.Column="0"
+                                                BackgroundColor="#2196F3"
+                                                Padding="8"
+                                                VerticalOptions="Start"
+                                                Margin="0,0,10,0"
+                                                WidthRequest="40"
+                                                HeightRequest="40">
+                                            <Border.StrokeShape>
+                                                <RoundRectangle CornerRadius="20" />
+                                            </Border.StrokeShape>
+                                            <Label Text="{Binding Rank}"
+                                                   TextColor="White"
+                                                   FontAttributes="Bold"
+                                                   HorizontalOptions="Center"
+                                                   VerticalOptions="Center" />
+                                        </Border>
+
+                                        <!-- Link Text -->
+                                        <Label Grid.Row="0"
+                                               Grid.Column="1"
+                                               Text="{Binding DisplayText}"
+                                               FontAttributes="Bold"
+                                               LineBreakMode="TailTruncation"
+                                               MaxLines="2" />
+
+                                        <!-- URL -->
+                                        <Label Grid.Row="1"
+                                               Grid.Column="1"
+                                               Text="{Binding Url}"
+                                               FontSize="12"
+                                               TextColor="Gray"
+                                               LineBreakMode="TailTruncation" />
+
+                                        <!-- Ad Indicator -->
+                                        <Label Grid.Row="2"
+                                               Grid.Column="1"
+                                               Text="{Binding AdLabel}"
+                                               FontSize="11"
+                                               TextColor="Red"
+                                               IsVisible="{Binding IsPotentialAd}"
+                                               Margin="0,5,0,0" />
+                                    </Grid>
+                                </Border>
+                            </DataTemplate>
+                        </CollectionView.ItemTemplate>
+                    </CollectionView>
+
+                    <!-- Footer Stats -->
+                    <Grid Grid.Row="2" BackgroundColor="#f0f0f0" Padding="15">
+                        <Label x:Name="linksStatsLabel" FontSize="12" TextColor="Gray" />
+                    </Grid>
+                </Grid>
+            </Border>
+        </Grid>
+
+        <!-- URL Entry -->
+        <Entry x:Name="urlEntry"
+               Grid.Row="0"
+               Grid.Column="0"
+               Placeholder="Enter URL"
+               ReturnType="Go"
+               Keyboard="Url"
+               Completed="urlEntry_Completed" />
+
+        <!-- WebView -->
+        <local:WebView x:Name="webView"
+                       Grid.Row="1"
+                       Grid.Column="0"
+                       PageDataChanged="webView_PageDataChanged"
+                       Source="https://www.w3schools.com/"
+                       UserAgent="Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36" />
+
+        <!-- Side Panel -->
+        <Grid x:Name="sidePanel"
+              Grid.Row="0"
+              Grid.RowSpan="2"
+              Grid.Column="1"
+              IsVisible="False">
+            <Grid.RowDefinitions>
+                <RowDefinition Height="Auto" />
+                <RowDefinition Height="*" />
+            </Grid.RowDefinitions>
+
+            <Entry x:Name="titleEntry"
+                   Grid.Row="0"
+                   Placeholder="Page Title" />
+            <ScrollView Grid.Row="1">
+                <Label x:Name="bodyEntry"
+                       BackgroundColor="White"
+                       TextColor="Black"
+                       Padding="5" />
+            </ScrollView>
+        </Grid>
     </Grid>
 
 </ContentPage>
