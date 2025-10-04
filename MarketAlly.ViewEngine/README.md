@@ -65,6 +65,7 @@ Once registered, you can use `WebView` in **XAML** or **C#**.
         Source="https://example.com"
         UserAgent="Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36"
         EnableRouteExtraction="false"
+        NormalizeRoutes="true"
         MaxRoutes="100"
         PageDataChanged="WebView_PageDataChanged"/>
 </ContentPage>
@@ -263,6 +264,48 @@ foreach (var ad in adLinks)
 }
 ```
 
+### **🔹 URL Normalization and Exclude Domains**
+
+**NormalizeRoutes** (default: true) removes tracking parameters to group duplicate URLs:
+
+```xml
+<!-- Default: URLs are normalized (tracking params removed) -->
+<viewengine:WebView NormalizeRoutes="true" />
+
+<!-- Keep all URLs exactly as they appear -->
+<viewengine:WebView NormalizeRoutes="false" />
+```
+
+**ExcludeDomains** allows specific domains to bypass normalization:
+
+```xml
+<!-- C# code -->
+webView.ExcludeDomains = new List<string> { "example.com", "api.mysite.com" };
+```
+
+When a domain is excluded:
+- All query parameters are preserved
+- Fragments are preserved
+- Matches exact domain and subdomains (e.g., "example.com" matches "api.example.com")
+- Useful for APIs or sites where query params are essential
+
+**Example:**
+```csharp
+// Normalize Google URLs but preserve API parameters
+webView.NormalizeRoutes = true;
+webView.ExcludeDomains = new List<string> { "api.myapp.com", "auth.provider.com" };
+
+var pageData = await webView.ExtractRoutesAsync();
+
+// Google URLs grouped:
+//   https://google.com/search?q=test&zx=123 → https://google.com/search?q=test
+//   https://google.com/search?q=test&zx=456 → https://google.com/search?q=test
+//   (Both become same URL, Occurrences = 2)
+
+// API URLs preserved exactly:
+//   https://api.myapp.com/data?key=abc&session=xyz (kept as-is)
+```
+
 ### **🔹 Performance Optimization**
 
 **MaxRoutes** limits the number of links processed (default: 100):
@@ -279,6 +322,7 @@ foreach (var ad in adLinks)
 - Keep `EnableRouteExtraction="false"` (default) for best performance
 - Call `ExtractRoutesAsync()` only when user needs links
 - Use `MaxRoutes` to limit processing on link-heavy pages
+- Use `ExcludeDomains` for domains where query parameters matter
 - Ad detection runs asynchronously in the background
 
 ### **🔹 Automatic PDF Detection and Extraction**

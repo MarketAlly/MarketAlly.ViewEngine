@@ -329,17 +329,23 @@ namespace MarketAlly.Maui.ViewEngine
 					if (shouldExtractRoutes)
 					{
 						int maxRoutes = webView?.MaxRoutes ?? 100;
+						bool normalizeRoutes = webView?.NormalizeRoutes ?? true;
+						var excludeDomains = webView?.ExcludeDomains;
+						bool enableAdDetection = webView?.EnableAdDetection ?? false;
 
 						// Use lazy processing: create basic routes immediately
-						routes = PageDataExtractor.CreateBasicRoutes(rawData.Links, maxRoutes);
-						bodyRoutes = PageDataExtractor.CreateBasicRoutes(rawData.BodyLinks, maxRoutes);
+						routes = PageDataExtractor.CreateBasicRoutes(rawData.Links, maxRoutes, normalizeRoutes, excludeDomains);
+						bodyRoutes = PageDataExtractor.CreateBasicRoutes(rawData.BodyLinks, maxRoutes, normalizeRoutes, excludeDomains);
 
 						// Process ad detection asynchronously in background
-						_ = Task.Run(async () =>
+						if (enableAdDetection)
 						{
-							await PageDataExtractor.ProcessAdsAsync(routes, rawData.Url);
-							await PageDataExtractor.ProcessAdsAsync(bodyRoutes, rawData.Url);
-						});
+							_ = Task.Run(async () =>
+							{
+								await PageDataExtractor.ProcessAdsAsync(routes, rawData.Url);
+								await PageDataExtractor.ProcessAdsAsync(bodyRoutes, rawData.Url);
+							});
+						}
 					}
 
 					var pageData = new PageData

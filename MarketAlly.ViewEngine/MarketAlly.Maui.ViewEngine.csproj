@@ -24,7 +24,7 @@
   <PropertyGroup>
     <GeneratePackageOnBuild>true</GeneratePackageOnBuild>
     <PackageId>MarketAlly.ViewEngine</PackageId>
-    <Version>1.1.1</Version>
+    <Version>1.1.5</Version>
     <Authors>David H Friedel Jr</Authors>
     <Company>MarketAlly</Company>
     <Product>MarketAlly.Maui.ViewEngine</Product>
@@ -62,26 +62,21 @@
     <PackageTags>webview dotnet-maui maui custom-control browser pdf-handling content-monitoring dom-monitoring user-agent cookie-management webrtc webgl android ios windows cross-platform web-scraping content-extraction debouncing link-extraction ad-detection on-demand performance-optimization</PackageTags>
 
     <PackageReleaseNotes>
-      Version 1.1.1 (Performance Optimization Release):
-      - BREAKING CHANGE: Routes are NOT extracted by default (EnableRouteExtraction=false) - ZERO performance impact on PageDataChanged
-      - NEW: ExtractRoutesAsync() method for on-demand route extraction when needed
-      - NEW: EnableRouteExtraction property - set to true for automatic extraction (original v1.1.0 behavior)
-      - NEW: MaxRoutes property limits route processing (default: 100, prevents lockups on pages with 1000+ links)
-      - NEW: Intelligent ad detection with scoring system (rel=sponsored, ad domains, tracking params, CSS classes)
-      - NEW: RouteInfo.IsPotentialAd and AdReason properties for filtering advertisements
-      - NEW: Async ad detection runs in background batches without blocking UI
-      - NEW: Raw link data caching for instant on-demand extraction
-      - PERFORMANCE: Eliminated route processing lockups on link-heavy pages
-      - PERFORMANCE: Batched async processing with UI thread yielding
-      - OPTIMIZATION: Memory management - cached data freed after ad processing
-      - Enhanced RouteInfo with Rank, Occurrences, AllTexts, and ad detection properties
-      - Fully backward compatible - existing apps continue to work (routes will be empty by default)
+      Version 1.1.4 (URL Normalization and Domain Exclusion):
+      - NEW: NormalizeRoutes property (default: true) - Groups duplicate URLs by removing tracking parameters
+      - NEW: ExcludeDomains property - Exclude specific domains from URL normalization
+      - ENHANCEMENT: URL normalization removes zx, ved, utm_*, fbclid, gclid, and other tracking params
+      - ENHANCEMENT: Supports exact domain and subdomain matching (e.g., "example.com" matches "api.example.com")
+      - FIX: Link text no longer contains CSS rules (removed .class{}, #id{}, property:value patterns)
+      - PRODUCTION READY: NormalizeRoutes is configurable for different use cases
+      - Perfect for grouping search results, social media links, and tracking URLs
 
-      Migration Guide:
-      - To restore v1.1.0 behavior: Set EnableRouteExtraction="true" on your WebView
-      - Recommended: Keep EnableRouteExtraction="false" and call ExtractRoutesAsync() on-demand for best performance
+      Usage:
+      - webView.NormalizeRoutes = true; // Group URLs with tracking params (default)
+      - webView.ExcludeDomains = new List&lt;string&gt; { "api.myapp.com" }; // Preserve API params
 
       Previous versions:
+      - 1.1.1-1.1.3: Performance optimization, on-demand route extraction, ad detection
       - 1.1.0: Stable production release with debouncing and enhanced link extraction
       - 1.0.x: Initial releases with content monitoring, PDF handling, and custom user-agent support
     </PackageReleaseNotes>

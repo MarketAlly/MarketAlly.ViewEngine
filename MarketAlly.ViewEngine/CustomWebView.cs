@@ -14,6 +14,15 @@ namespace MarketAlly.Maui.ViewEngine
 		public static readonly BindableProperty EnableRouteExtractionProperty =
 			BindableProperty.Create(nameof(EnableRouteExtraction), typeof(bool), typeof(WebView), false);
 
+		public static readonly BindableProperty NormalizeRoutesProperty =
+			BindableProperty.Create(nameof(NormalizeRoutes), typeof(bool), typeof(WebView), true);
+
+		public static readonly BindableProperty ExcludeDomainsProperty =
+			BindableProperty.Create(nameof(ExcludeDomains), typeof(List<string>), typeof(WebView), null);
+
+		public static readonly BindableProperty EnableAdDetectionProperty =
+			BindableProperty.Create(nameof(EnableAdDetection), typeof(bool), typeof(WebView), false);
+
 		public WebView()
 		{
 			// Use both Loaded and HandlerChanged for maximum compatibility
@@ -147,6 +156,40 @@ namespace MarketAlly.Maui.ViewEngine
 		{
 			get => (bool)GetValue(EnableRouteExtractionProperty);
 			set => SetValue(EnableRouteExtractionProperty, value);
+		}
+
+		/// <summary>
+		/// When true (default), URLs are normalized by removing tracking parameters (zx, ved, utm_*, fbclid, etc.) and fragments.
+		/// This groups duplicate URLs with different tracking params into a single route with higher Occurrences count.
+		/// Set to false to keep all URLs exactly as they appear (each tracking variation becomes a separate route).
+		/// </summary>
+		public bool NormalizeRoutes
+		{
+			get => (bool)GetValue(NormalizeRoutesProperty);
+			set => SetValue(NormalizeRoutesProperty, value);
+		}
+
+		/// <summary>
+		/// List of domains to exclude from URL normalization.
+		/// URLs from these domains will keep all query parameters and fragments intact, even when NormalizeRoutes is true.
+		/// Example: ExcludeDomains = new List&lt;string&gt; { "example.com", "api.mysite.com" }
+		/// </summary>
+		public List<string> ExcludeDomains
+		{
+			get => (List<string>)GetValue(ExcludeDomainsProperty);
+			set => SetValue(ExcludeDomainsProperty, value);
+		}
+
+		/// <summary>
+		/// When true, runs background ad detection on extracted routes.
+		/// When false (default), ad detection is skipped for better performance.
+		/// Ad detection adds IsPotentialAd and AdReason properties to RouteInfo.
+		/// Set to true only if you need to filter advertisements from route lists.
+		/// </summary>
+		public bool EnableAdDetection
+		{
+			get => (bool)GetValue(EnableAdDetectionProperty);
+			set => SetValue(EnableAdDetectionProperty, value);
 		}
 
 		/// <summary>

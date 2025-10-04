@@ -69,9 +69,12 @@ namespace MarketAlly.Maui.ViewEngine
 			{
 				var webView = VirtualView as WebView;
 				int maxRoutes = webView?.MaxRoutes ?? 100;
+				bool normalizeRoutes = webView?.NormalizeRoutes ?? true;
+				var excludeDomains = webView?.ExcludeDomains;
+				bool enableAdDetection = webView?.EnableAdDetection ?? false;
 
-				var routes = PageDataExtractor.CreateBasicRoutes(_cachedRawData.Links, maxRoutes);
-				var bodyRoutes = PageDataExtractor.CreateBasicRoutes(_cachedRawData.BodyLinks, maxRoutes);
+				var routes = PageDataExtractor.CreateBasicRoutes(_cachedRawData.Links, maxRoutes, normalizeRoutes, excludeDomains);
+				var bodyRoutes = PageDataExtractor.CreateBasicRoutes(_cachedRawData.BodyLinks, maxRoutes, normalizeRoutes, excludeDomains);
 
 				var pageData = new PageData
 				{
@@ -83,11 +86,14 @@ namespace MarketAlly.Maui.ViewEngine
 				};
 
 				// Process ad detection asynchronously in background
-				_ = Task.Run(async () =>
+				if (enableAdDetection)
 				{
-					await PageDataExtractor.ProcessAdsAsync(routes, _cachedRawData.Url);
-					await PageDataExtractor.ProcessAdsAsync(bodyRoutes, _cachedRawData.Url);
-				});
+					_ = Task.Run(async () =>
+					{
+						await PageDataExtractor.ProcessAdsAsync(routes, _cachedRawData.Url);
+						await PageDataExtractor.ProcessAdsAsync(bodyRoutes, _cachedRawData.Url);
+					});
+				}
 
 				return pageData;
 			}
@@ -372,7 +378,35 @@ namespace MarketAlly.Maui.ViewEngine
                     try {
                         let href = link.href;
                         let linkUrl = new URL(href, window.location.href);
-                        let linkText = (link.innerText || link.textContent || '').trim();
+
+                        // Get text, filtering out style attributes and hidden elements
+                        let linkText = '';
+
+                        // Try multiple text sources in priority order
+                        if (link.getAttribute('aria-label')) {
+                            linkText = link.getAttribute('aria-label').trim();
+                        } else if (link.title) {
+                            linkText = link.title.trim();
+                        } else if (link.textContent && link.textContent.trim()) {
+                            linkText = link.textContent.trim();
+                        }
+
+                        // Skip if still empty
+                        if (!linkText) {
+                            return null;
+                        }
+
+                        // Remove CSS rules and styles that sometimes appear in text
+                        linkText = linkText.replace(/\.[a-zA-Z0-9_-]+\s*\{[^}]*\}/g, '')  // Remove .class{...}
+                                          .replace(/#[a-zA-Z0-9_-]+\s*\{[^}]*\}/g, '')  // Remove #id{...}
+                                          .replace(/[a-zA-Z-]+\s*:\s*[^;]+;?/g, '')     // Remove property:value
+                                          .replace(/\s+/g, ' ')
+                                          .trim();
+
+                        // Skip if empty after cleaning
+                        if (!linkText) {
+                            return null;
+                        }
 
                         return {
                             href: linkUrl.href,
@@ -387,10 +421,10 @@ namespace MarketAlly.Maui.ViewEngine
                     }
                 }
 
-                // Extract all links
+                // Extract all links (skip links without text to reduce processing)
                 allLinks.forEach(function(link) {
                     let linkData = extractLinkData(link);
-                    if (linkData) {
+                    if (linkData && linkData.text) {
                         links.push(linkData);
                     }
                 });
@@ -419,19 +453,23 @@ namespace MarketAlly.Maui.ViewEngine
                     }
                 });
 
-                // If no body links found using selectors, fall back to body tag
-                if (bodyLinkElements.size === 0 && document.body) {
-                    document.body.querySelectorAll('a[href]').forEach(function(link) {
-                        bodyLinkElements.add(link);
-                    });
-                }
-
+                // Extract body links with text filtering
                 bodyLinkElements.forEach(function(link) {
                     let linkData = extractLinkData(link);
-                    if (linkData) {
+                    if (linkData && linkData.text) {
                         bodyLinks.push(linkData);
                     }
                 });
+
+                // If no body links found using selectors, fall back to body tag
+                if (bodyLinks.length === 0 && document.body) {
+                    document.body.querySelectorAll('a[href]').forEach(function(link) {
+                        let linkData = extractLinkData(link);
+                        if (linkData && linkData.text) {
+                            bodyLinks.push(linkData);
+                        }
+                    });
+                }
 
                 let pageData = {
                     title: sanitizeString(document.title || ''),
@@ -446,22 +484,93 @@ namespace MarketAlly.Maui.ViewEngine
             })();";
 
 		/// <summary>
+		/// Normalizes URL by removing common tracking parameters
+		/// </summary>
+		private static string NormalizeUrl(string url, List<string> excludeDomains = null)
+		{
+			if (string.IsNullOrEmpty(url))
+				return url;
+
+			try
+			{
+				var uri = new Uri(url);
+
+				// Check if domain should be excluded from normalization
+				if (excludeDomains != null && excludeDomains.Count > 0)
+				{
+					var host = uri.Host.ToLowerInvariant();
+					foreach (var domain in excludeDomains)
+					{
+						var excludeDomain = domain.ToLowerInvariant();
+						// Match exact domain or subdomain
+						if (host == excludeDomain || host.EndsWith("." + excludeDomain))
+						{
+							return url; // Return original URL without normalization
+						}
+					}
+				}
+
+				var query = System.Web.HttpUtility.ParseQueryString(uri.Query);
+
+				// Remove common tracking parameters
+				var trackingParams = new[] {
+					"zx", "no_sw_cr", "ved", "sa", "usg", "ei",
+					"utm_source", "utm_medium", "utm_campaign", "utm_content", "utm_term",
+					"fbclid", "gclid", "msclkid", "_ga", "mc_cid", "mc_eid"
+				};
+
+				foreach (var param in trackingParams)
+				{
+					query.Remove(param);
+				}
+
+				// Rebuild URL without tracking params
+				var builder = new UriBuilder(uri)
+				{
+					Query = query.Count > 0 ? query.ToString() : string.Empty,
+					Fragment = string.Empty // Also remove fragments for grouping
+				};
+
+				return builder.Uri.ToString();
+			}
+			catch
+			{
+				// If URL parsing fails, return original
+				return url;
+			}
+		}
+
+		/// <summary>
 		/// Fast method to create basic routes without ad detection (lazy processing)
 		/// </summary>
-		public static List<RouteInfo> CreateBasicRoutes(List<LinkData> links, int maxRoutes = 100)
+		public static List<RouteInfo> CreateBasicRoutes(List<LinkData> links, int maxRoutes = 100, bool normalizeRoutes = true, List<string> excludeDomains = null)
 		{
 			if (links == null || links.Count == 0)
 				return new List<RouteInfo>();
 
-			// Group links by URL to detect duplicates
-			var linksByUrl = new Dictionary<string, List<LinkData>>(StringComparer.OrdinalIgnoreCase);
-			foreach (var link in links)
+			// Filter out links without text first to reduce processing
+			var validLinks = links.Where(l => !string.IsNullOrWhiteSpace(l.Text)).ToList();
+
+			if (validLinks.Count == 0)
+				return new List<RouteInfo>();
+
+			// Safety limit: If we have too many links, enforce a maximum to prevent lockups
+			const int absoluteMaxLinks = 500;
+			if (validLinks.Count > absoluteMaxLinks)
 			{
-				if (!linksByUrl.ContainsKey(link.Href))
+				validLinks = validLinks.Take(absoluteMaxLinks).ToList();
+			}
+
+			// Group links by URL (normalized or exact) to detect duplicates
+			var linksByUrl = new Dictionary<string, List<LinkData>>(StringComparer.OrdinalIgnoreCase);
+			foreach (var link in validLinks)
+			{
+				var groupKey = normalizeRoutes ? NormalizeUrl(link.Href, excludeDomains) : link.Href;
+				if (!linksByUrl.ContainsKey(groupKey))
 				{
-					linksByUrl[link.Href] = new List<LinkData>();
+					linksByUrl[groupKey] = new List<LinkData>();
 				}
-				linksByUrl[link.Href].Add(link);
+				linksByUrl[groupKey].Add(link);
 			}
 
 			// Apply limit early if specified
@@ -469,7 +578,7 @@ namespace MarketAlly.Maui.ViewEngine
 				? linksByUrl.Take(maxRoutes).ToList()
 				: linksByUrl.ToList();
 
-			var routes = new List<RouteInfo>();
+			var routes = new List<RouteInfo>(urlGroups.Count);
 			int rank = 1;
 
 			foreach (var urlGroup in urlGroups)
@@ -478,17 +587,28 @@ namespace MarketAlly.Maui.ViewEngine
 				var linkInstances = urlGroup.Value;
 				var firstInstance = linkInstances.First();
 
+				// Only collect distinct texts if there are multiple instances
+				List<string> allTexts;
+				if (linkInstances.Count > 1)
+				{
+					allTexts = linkInstances
+						.Select(l => l.Text)
+						.Where(t => !string.IsNullOrWhiteSpace(t))
+						.Distinct()
+						.ToList();
+				}
+				else
+				{
+					allTexts = new List<string> { firstInstance.Text };
+				}
+
 				var routeInfo = new RouteInfo
 				{
 					Url = url,
 					Text = firstInstance.Text,
 					Occurrences = linkInstances.Count,
 					Rank = rank++,
-					AllTexts = linkInstances
-						.Select(l => l.Text)
-						.Where(t => !string.IsNullOrWhiteSpace(t))
-						.Distinct()
-						.ToList(),
+					AllTexts = allTexts,
 					IsAdProcessed = false,
 					_linkInstances = linkInstances // Store for later ad processing
 				};
@@ -507,7 +627,7 @@ namespace MarketAlly.Maui.ViewEngine
 			if (routes == null || routes.Count == 0)
 				return;
 
-			const int batchSize = 25;
+			const int batchSize = 10; // Reduced from 25 for better responsiveness
 
 			// Simplified ad detection patterns (faster)
 			var adClassIdPatterns = new[] {
