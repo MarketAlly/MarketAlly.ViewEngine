@@ -150,7 +150,15 @@ namespace MarketAlly.Maui.ViewEngine
 							console.log('Force navigating to:', href);
 							e.preventDefault();
 							e.stopPropagation();
-							setTimeout(() => { window.location.assign(href); }, 50);
+
+							// Try to use the native click first for better history support
+							// Create and dispatch a new click event without our handler
+							window.__forceLinkNavInjected = false;
+							setTimeout(() => {
+								// Use location.href for better history tracking
+								window.location.href = href;
+								window.__forceLinkNavInjected = true;
+							}, 50);
 							return false;
 						}
 					}
