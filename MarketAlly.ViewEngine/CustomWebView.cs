@@ -5,6 +5,9 @@ namespace MarketAlly.Maui.ViewEngine
 		// Expose PageDataChanged event at the WebView level
 		public event EventHandler<PageData> PageDataChanged;
 
+		// Event that fires when page is fully loaded and processed
+		public event EventHandler<EventArgs> PageLoadComplete;
+
 		// Track navigation behavior for auto-detection
 		private string _lastUrl = string.Empty;
 		private int _clicksWithoutNavigation = 0;
@@ -34,6 +37,18 @@ namespace MarketAlly.Maui.ViewEngine
 		public static readonly BindableProperty AutoDetectNavigationIssuesProperty =
 			BindableProperty.Create(nameof(AutoDetectNavigationIssues), typeof(bool), typeof(WebView), true);
 
+		public static readonly BindableProperty IsLoadingProperty =
+			BindableProperty.Create(nameof(IsLoading), typeof(bool), typeof(WebView), false,
+				propertyChanged: (bindable, oldValue, newValue) =>
+				{
+					var webView = (WebView)bindable;
+					if (newValue is bool isLoading && !isLoading)
+					{
+						// Fire PageLoadComplete when loading transitions from true to false
+						webView.PageLoadComplete?.Invoke(webView, EventArgs.Empty);
+					}
+				});
+
 		public WebView()
 		{
 			// Use both Loaded and HandlerChanged for maximum compatibility
@@ -50,6 +65,8 @@ namespace MarketAlly.Maui.ViewEngine
 
 		private void OnNavigating(object sender, WebNavigatingEventArgs e)
 		{
+			// Set IsLoading to true when navigation starts
+			IsLoading = true;
 		}
 
 		private async void OnNavigated(object sender, WebNavigatedEventArgs e)
@@ -81,6 +98,12 @@ namespace MarketAlly.Maui.ViewEngine
 					await Task.Delay(500); // Small delay to let page load
 					await handler.OnPageDataChangedAsync();
 				}
+			}
+			else
+			{
+				// Navigation failed, set IsLoading to false
+				IsLoading = false;
+				System.Diagnostics.Debug.WriteLine($"Navigation failed with result: {e.Result}");
 			}
 		}
 
@@ -182,6 +205,9 @@ namespace MarketAlly.Maui.ViewEngine
 				}
 			}
 
+			// Set IsLoading to false since page data extraction is complete
+			IsLoading = false;
+
 			PageDataChanged?.Invoke(this, pageData);
 		}
 
@@ -267,6 +293,17 @@ namespace MarketAlly.Maui.ViewEngine
 		{
 			get => (bool)GetValue(AutoDetectNavigationIssuesProperty);
 			set => SetValue(AutoDetectNavigationIssuesProperty, value);
+		}
+
+		/// <summary>
+		/// Indicates whether the WebView is currently loading a page or processing content.
+		/// True when page is loading, false when page load is complete and content has been processed.
+		/// Use PageLoadComplete event to be notified when loading completes.
+		/// </summary>
+		public bool IsLoading
+		{
+			get => (bool)GetValue(IsLoadingProperty);
+			set => SetValue(IsLoadingProperty, value);
 		}
 
 		/// <summary>
