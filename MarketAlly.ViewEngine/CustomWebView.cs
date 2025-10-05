@@ -5,6 +5,11 @@ namespace MarketAlly.Maui.ViewEngine
 		// Expose PageDataChanged event at the WebView level
 		public event EventHandler<PageData> PageDataChanged;
 
+		// Track navigation behavior for auto-detection
+		private string _lastUrl = string.Empty;
+		private int _clicksWithoutNavigation = 0;
+		private bool _autoDetectNavigationIssues = true;
+
 		public static readonly BindableProperty UserAgentProperty =
 			BindableProperty.Create(nameof(UserAgent), typeof(string), typeof(WebView), default(string));
 
@@ -22,6 +27,12 @@ namespace MarketAlly.Maui.ViewEngine
 
 		public static readonly BindableProperty EnableAdDetectionProperty =
 			BindableProperty.Create(nameof(EnableAdDetection), typeof(bool), typeof(WebView), false);
+
+		public static readonly BindableProperty ForceLinkNavigationProperty =
+			BindableProperty.Create(nameof(ForceLinkNavigation), typeof(bool), typeof(WebView), false);
+
+		public static readonly BindableProperty AutoDetectNavigationIssuesProperty =
+			BindableProperty.Create(nameof(AutoDetectNavigationIssues), typeof(bool), typeof(WebView), true);
 
 		public WebView()
 		{
@@ -43,12 +54,33 @@ namespace MarketAlly.Maui.ViewEngine
 
 		private async void OnNavigated(object sender, WebNavigatedEventArgs e)
 		{
-
-			// Trigger page data extraction when navigation completes successfully
-			if (e.Result == WebNavigationResult.Success && Handler is WebViewHandler handler)
+			// Check if navigation was successful and URL changed
+			if (e.Result == WebNavigationResult.Success)
 			{
-				await Task.Delay(500); // Small delay to let page load
-				await handler.OnPageDataChangedAsync();
+				// Auto-detection logic
+				if (AutoDetectNavigationIssues && !string.IsNullOrEmpty(e.Url))
+				{
+					if (e.Url != _lastUrl)
+					{
+						// Navigation succeeded, reset counter
+						_clicksWithoutNavigation = 0;
+						_lastUrl = e.Url;
+
+						// Disable force navigation for new pages
+						if (ForceLinkNavigation)
+						{
+							ForceLinkNavigation = false;
+							System.Diagnostics.Debug.WriteLine($"Auto-disabled ForceLinkNavigation after successful navigation to: {e.Url}");
+						}
+					}
+				}
+
+				// Trigger page data extraction when navigation completes successfully
+				if (Handler is WebViewHandler handler)
+				{
+					await Task.Delay(500); // Small delay to let page load
+					await handler.OnPageDataChangedAsync();
+				}
 			}
 		}
 
@@ -127,6 +159,29 @@ namespace MarketAlly.Maui.ViewEngine
 
 		private void OnPageDataChanged(object sender, PageData pageData)
 		{
+			// Auto-detection: check if URL hasn't changed (possible click without navigation)
+			if (AutoDetectNavigationIssues && !string.IsNullOrEmpty(pageData.Url))
+			{
+				if (pageData.Url == _lastUrl)
+				{
+					_clicksWithoutNavigation++;
+					System.Diagnostics.Debug.WriteLine($"Detected click without navigation (count: {_clicksWithoutNavigation}) on: {pageData.Url}");
+
+					// After 2 clicks that don't navigate, enable force navigation
+					if (_clicksWithoutNavigation >= 2 && !ForceLinkNavigation)
+					{
+						ForceLinkNavigation = true;
+						System.Diagnostics.Debug.WriteLine($"Auto-enabled ForceLinkNavigation after {_clicksWithoutNavigation} non-navigating clicks");
+					}
+				}
+				else
+				{
+					// URL changed, reset counter
+					_clicksWithoutNavigation = 0;
+					_lastUrl = pageData.Url;
+				}
+			}
+
 			PageDataChanged?.Invoke(this, pageData);
 		}
 
@@ -190,6 +245,28 @@ namespace MarketAlly.Maui.ViewEngine
 		{
 			get => (bool)GetValue(EnableAdDetectionProperty);
 			set => SetValue(EnableAdDetectionProperty, value);
+		}
+
+		/// <summary>
+		/// When true, forces link navigation on sites that prevent it (like some SPAs).
+		/// When false (default), uses normal WebView navigation behavior.
+		/// Can be set manually or will be auto-enabled when navigation issues are detected.
+		/// </summary>
+		public bool ForceLinkNavigation
+		{
+			get => (bool)GetValue(ForceLinkNavigationProperty);
+			set => SetValue(ForceLinkNavigationProperty, value);
+		}
+
+		/// <summary>
+		/// When true (default), automatically detects when sites prevent navigation and enables ForceLinkNavigation.
+		/// Detects by counting clicks that don't result in URL changes.
+		/// Set to false to disable auto-detection and control ForceLinkNavigation manually.
+		/// </summary>
+		public bool AutoDetectNavigationIssues
+		{
+			get => (bool)GetValue(AutoDetectNavigationIssuesProperty);
+			set => SetValue(AutoDetectNavigationIssuesProperty, value);
 		}
 
 		/// <summary>

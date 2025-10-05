@@ -34,6 +34,51 @@ namespace MarketAlly.Maui.ViewEngine
                 }, 1000);
             }
 
+            // Fix navigation for SPAs like Google News
+            document.addEventListener('click', function(e) {
+                let target = e.target;
+
+                // Walk up the DOM to find an anchor element
+                while (target && target !== document.body) {
+                    if (target.tagName === 'A') break;
+                    target = target.parentElement;
+                }
+
+                if (target && target.tagName === 'A' && target.href) {
+                    const href = target.href;
+                    const currentUrl = window.location.href;
+
+                    // Check if it's a real navigation link
+                    if (href &&
+                        href !== currentUrl &&
+                        !href.startsWith('javascript:') &&
+                        href !== '#' &&
+                        !href.startsWith('about:')) {
+
+                        // Check for SPAs that prevent navigation
+                        const isGoogleNews = window.location.hostname.includes('news.google.com');
+                        const isExternalLink = new URL(href).hostname !== window.location.hostname;
+
+                        // Force navigation for known SPAs or external links
+                        if (isGoogleNews || isExternalLink) {
+                            console.log('WebView: Force navigating to:', href);
+                            e.preventDefault();
+                            e.stopPropagation();
+
+                            // Use location.assign for proper navigation history
+                            setTimeout(() => {
+                                window.location.assign(href);
+                            }, 50);
+
+                            return false;
+                        }
+                    }
+                }
+
+                // Still notify content change for other clicks
+                notifyContentChange();
+            }, true); // Use capture phase to intercept before SPA handlers
+
             const observer = new MutationObserver((mutations) => {
                 const hasSignificantChanges = mutations.some(mutation =>
                     mutation.addedNodes.length > 0 ||
@@ -56,10 +101,6 @@ namespace MarketAlly.Maui.ViewEngine
                     subtree: true,
                     attributeFilter: ['class', 'style', 'data-loaded']
                 });
-
-                document.addEventListener('click', () => {
-                    notifyContentChange();
-                }, true);
             }
         })();";
 
@@ -70,10 +111,59 @@ namespace MarketAlly.Maui.ViewEngine
 				if (PlatformView != null)
 				{
 					PlatformView.EvaluateJavascript(ContentMonitoringScript, null);
+
+					// Check if we need to inject link forcing script
+					var webView = VirtualView as WebView;
+					if (webView?.ForceLinkNavigation == true)
+					{
+						InjectForceLinkNavigationScript();
+					}
 				}
 			}
 			catch (Exception ex)
 			{
+			}
+		}
+
+		private void InjectForceLinkNavigationScript()
+		{
+			const string forceLinkScript = @"
+			(function() {
+				if (window.__forceLinkNavInjected) return;
+				window.__forceLinkNavInjected = true;
+
+				document.addEventListener('click', function(e) {
+					let target = e.target;
+					while (target && target !== document.body) {
+						if (target.tagName === 'A') break;
+						target = target.parentElement;
+					}
+
+					if (target && target.tagName === 'A' && target.href) {
+						const href = target.href;
+						if (href &&
+							href !== window.location.href &&
+							!href.startsWith('javascript:') &&
+							href !== '#' &&
+							!href.startsWith('about:')) {
+
+							console.log('Force navigating to:', href);
+							e.preventDefault();
+							e.stopPropagation();
+							setTimeout(() => { window.location.assign(href); }, 50);
+							return false;
+						}
+					}
+				}, true);
+			})();";
+
+			try
+			{
+				PlatformView?.EvaluateJavascript(forceLinkScript, null);
+			}
+			catch (Exception ex)
+			{
+				System.Diagnostics.Debug.WriteLine($"Error injecting force link script: {ex.Message}");
 			}
 		}
 

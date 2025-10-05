@@ -66,10 +66,62 @@ namespace MarketAlly.Maui.ViewEngine
 				if (PlatformView != null)
 				{
 					await PlatformView.EvaluateJavaScriptAsync(ContentMonitoringScript);
+
+					// Check if we need to inject link forcing script
+					var webView = VirtualView as WebView;
+					if (webView?.ForceLinkNavigation == true)
+					{
+						await InjectForceLinkNavigationScriptAsync();
+					}
 				}
 			}
 			catch (Exception ex)
 			{
+			}
+		}
+
+		private async Task InjectForceLinkNavigationScriptAsync()
+		{
+			const string forceLinkScript = @"
+			(function() {
+				if (window.__forceLinkNavInjected) return;
+				window.__forceLinkNavInjected = true;
+
+				document.addEventListener('click', function(e) {
+					let target = e.target;
+					while (target && target !== document.body) {
+						if (target.tagName === 'A') break;
+						target = target.parentElement;
+					}
+
+					if (target && target.tagName === 'A' && target.href) {
+						const href = target.href;
+						if (href &&
+							href !== window.location.href &&
+							!href.startsWith('javascript:') &&
+							href !== '#' &&
+							!href.startsWith('about:')) {
+
+							console.log('Force navigating to:', href);
+							e.preventDefault();
+							e.stopPropagation();
+							setTimeout(() => { window.location.assign(href); }, 50);
+							return false;
+						}
+					}
+				}, true);
+			})();";
+
+			try
+			{
+				if (PlatformView != null)
+				{
+					await PlatformView.EvaluateJavaScriptAsync(forceLinkScript);
+				}
+			}
+			catch (Exception ex)
+			{
+				System.Diagnostics.Debug.WriteLine($"Error injecting force link script: {ex.Message}");
 			}
 		}
 
