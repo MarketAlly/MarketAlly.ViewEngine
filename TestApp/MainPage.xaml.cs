@@ -8,11 +8,24 @@ namespace TestApp
 		private bool _isSidebarVisible = false;
 		private PageData _currentPageData;
 		private bool _showingBodyLinksOnly = false;
+		private DateTime _lastThumbnailCapture = DateTime.MinValue;
 
 		public MainPage()
 		{
-			InitializeComponent();
-			UpdateSidebarVisibility();
+			try
+			{
+				System.Diagnostics.Debug.WriteLine("MainPage: Constructor starting");
+				InitializeComponent();
+				System.Diagnostics.Debug.WriteLine("MainPage: InitializeComponent completed");
+				UpdateSidebarVisibility();
+				System.Diagnostics.Debug.WriteLine("MainPage: Constructor completed successfully");
+			}
+			catch (Exception ex)
+			{
+				System.Diagnostics.Debug.WriteLine($"MainPage: Constructor FAILED - {ex.Message}");
+				System.Diagnostics.Debug.WriteLine($"MainPage: Stack trace - {ex.StackTrace}");
+				throw;
+			}
 		}
 
 		private async void urlEntry_Completed(object sender, EventArgs e)
@@ -174,6 +187,42 @@ namespace TestApp
 				// Clear selection
 				linksCollectionView.SelectedItem = null;
 			}
+		}
+
+		private async void CaptureThumbnail_Clicked(object sender, EventArgs e)
+		{
+			try
+			{
+				// Show loading state
+				thumbnailStatusLabel.Text = "Capturing thumbnail...";
+				thumbnailImage.Source = null;
+				thumbnailOverlay.IsVisible = true;
+
+				// Capture the thumbnail
+				var thumbnail = await webView.CaptureThumbnailAsync(640, 360);
+
+				if (thumbnail != null)
+				{
+					_lastThumbnailCapture = DateTime.Now;
+					thumbnailImage.Source = thumbnail;
+					thumbnailStatusLabel.Text = $"Captured at {_lastThumbnailCapture:HH:mm:ss} | Size: 640x360";
+				}
+				else
+				{
+					thumbnailStatusLabel.Text = "Failed to capture thumbnail";
+					await DisplayAlert("Error", "Failed to capture thumbnail. WebView may not be ready.", "OK");
+				}
+			}
+			catch (Exception ex)
+			{
+				thumbnailStatusLabel.Text = $"Error: {ex.Message}";
+				await DisplayAlert("Error", $"Failed to capture thumbnail: {ex.Message}", "OK");
+			}
+		}
+
+		private void HideThumbnail_Clicked(object sender, EventArgs e)
+		{
+			thumbnailOverlay.IsVisible = false;
 		}
 	}
 

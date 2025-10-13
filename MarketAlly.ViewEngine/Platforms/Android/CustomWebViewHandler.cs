@@ -314,6 +314,7 @@ namespace MarketAlly.Maui.ViewEngine
 		public partial async Task InjectJavaScriptAsync(string script)
 		{
 			PlatformView.EvaluateJavascript(script, null);
+			await Task.CompletedTask;
 		}
 
 		public void SetUserAgent(string userAgent)

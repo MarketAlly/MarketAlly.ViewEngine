@@ -8,6 +8,7 @@
         <ToolbarItem Text="Toggle" Clicked="ToggleSidebar_Clicked" />
         <ToolbarItem Text="Refresh" Clicked="RefreshData_Clicked" />
         <ToolbarItem Text="Links" Clicked="ShowLinks_Clicked" />
+        <ToolbarItem Text="Thumbnail" Clicked="CaptureThumbnail_Clicked" />
     </ContentPage.ToolbarItems>
 
     <Grid>
@@ -19,6 +20,84 @@
             <ColumnDefinition Width="*" />
             <ColumnDefinition x:Name="sideColumn" Width="300" />
         </Grid.ColumnDefinitions>
+
+        <!-- Thumbnail Overlay -->
+        <Grid x:Name="thumbnailOverlay"
+              Grid.Row="0"
+              Grid.RowSpan="2"
+              Grid.ColumnSpan="2"
+              IsVisible="False"
+              BackgroundColor="#CC000000"
+              ZIndex="101">
+            <Grid.GestureRecognizers>
+                <TapGestureRecognizer Tapped="HideThumbnail_Clicked" />
+            </Grid.GestureRecognizers>
+
+            <Border BackgroundColor="White"
+                    Stroke="Gray"
+                    StrokeThickness="2"
+                    Margin="40"
+                    Padding="15"
+                    MaximumWidthRequest="800"
+                    MaximumHeightRequest="600">
+                <Border.StrokeShape>
+                    <RoundRectangle CornerRadius="10" />
+                </Border.StrokeShape>
+
+                <Grid>
+                    <Grid.RowDefinitions>
+                        <RowDefinition Height="Auto" />
+                        <RowDefinition Height="*" />
+                        <RowDefinition Height="Auto" />
+                    </Grid.RowDefinitions>
+
+                    <!-- Header -->
+                    <Grid Grid.Row="0" Padding="0,0,0,10">
+                        <Grid.ColumnDefinitions>
+                            <ColumnDefinition Width="*" />
+                            <ColumnDefinition Width="Auto" />
+                        </Grid.ColumnDefinitions>
+
+                        <Label Text="Page Thumbnail"
+                               Grid.Column="0"
+                               FontSize="20"
+                               FontAttributes="Bold"
+                               VerticalOptions="Center" />
+
+                        <Button Text="✕"
+                                Grid.Column="1"
+                                BackgroundColor="Transparent"
+                                TextColor="Black"
+                                Clicked="HideThumbnail_Clicked"
+                                Padding="10" />
+                    </Grid>
+
+                    <!-- Thumbnail Image -->
+                    <Border Grid.Row="1"
+                            Stroke="LightGray"
+                            StrokeThickness="1"
+                            Padding="5"
+                            HorizontalOptions="Center"
+                            VerticalOptions="Center">
+                        <Border.StrokeShape>
+                            <RoundRectangle CornerRadius="5" />
+                        </Border.StrokeShape>
+                        <Image x:Name="thumbnailImage"
+                               Aspect="AspectFit"
+                               HorizontalOptions="Center"
+                               VerticalOptions="Center" />
+                    </Border>
+
+                    <!-- Footer -->
+                    <Grid Grid.Row="2" Padding="0,10,0,0">
+                        <Label x:Name="thumbnailStatusLabel"
+                               FontSize="12"
+                               TextColor="Gray"
+                               HorizontalOptions="Center" />
+                    </Grid>
+                </Grid>
+            </Border>
+        </Grid>
 
         <!-- Links Modal Overlay -->
         <Grid x:Name="linksOverlay"
