@@ -476,5 +476,77 @@ namespace MarketAlly.Maui.ViewEngine
 			// Not needed on Windows - WebView2 uses event handlers instead
 		}
 
+	public partial async Task<Microsoft.Maui.Controls.ImageSource> CaptureThumbnailAsync(int width = 320, int height = 180)
+	{
+		try
+		{
+			if (PlatformView?.CoreWebView2 == null)
+			{
+				return null;
+			}
+
+			// Create a temporary file to save the screenshot
+			var tempPath = Path.Combine(Path.GetTempPath(), $"webview_thumbnail_{Guid.NewGuid()}.png");
+
+			// Capture the webpage screenshot
+			using (var stream = System.IO.File.Create(tempPath))
+			{
+				await PlatformView.CoreWebView2.CapturePreviewAsync(
+					CoreWebView2CapturePreviewImageFormat.Png,
+					stream.AsRandomAccessStream());
+			}
+
+			// Load the captured image and resize it
+			using (var fileStream = System.IO.File.OpenRead(tempPath))
+			{
+				// Load image using MAUI Graphics
+				var image = Microsoft.Maui.Graphics.Platform.PlatformImage.FromStream(fileStream);
+
+				if (image == null)
+				{
+					System.IO.File.Delete(tempPath);
+					return null;
+				}
+
+				// Calculate aspect-preserving dimensions
+				float aspectRatio = image.Width / (float)image.Height;
+				int targetWidth = width;
+				int targetHeight = height;
+
+				if (aspectRatio > (width / (float)height))
+				{
+					// Image is wider - fit to width
+					targetHeight = (int)(width / aspectRatio);
+				}
+				else
+				{
+					// Image is taller - fit to height
+					targetWidth = (int)(height * aspectRatio);
+				}
+
+				// Resize the image
+				var resized = image.Resize(targetWidth, targetHeight, Microsoft.Maui.Graphics.ResizeMode.Fit);
+
+				// Save resized image to a new temp file
+				var resizedPath = Path.Combine(Path.GetTempPath(), $"webview_thumbnail_resized_{Guid.NewGuid()}.png");
+				using (var outputStream = System.IO.File.Create(resizedPath))
+				{
+					resized.Save(outputStream);
+				}
+
+				// Clean up original temp file
+				System.IO.File.Delete(tempPath);
+
+				// Return as ImageSource
+				return Microsoft.Maui.Controls.ImageSource.FromFile(resizedPath);
+			}
+		}
+		catch (Exception ex)
+		{
+			System.Diagnostics.Debug.WriteLine($"Error capturing thumbnail: {ex.Message}");
+			return null;
+		}
+	}
+
 	}
 }

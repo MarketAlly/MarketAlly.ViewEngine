@@ -427,6 +427,83 @@ namespace MarketAlly.Maui.ViewEngine
 				return new PageData { Title = "Error", Body = $"Failed to process HTML: {ex.Message}" };
 			}
 		}
+
+		public partial async Task<Microsoft.Maui.Controls.ImageSource> CaptureThumbnailAsync(int width = 320, int height = 180)
+		{
+			try
+			{
+				if (PlatformView == null)
+				{
+					return null;
+				}
+
+				// Ensure we're on the main thread
+				return await MainThread.InvokeOnMainThreadAsync(async () =>
+				{
+					try
+					{
+						// Get the WebView's dimensions
+						int webViewWidth = PlatformView.Width;
+						int webViewHeight = PlatformView.Height;
+
+						if (webViewWidth <= 0 || webViewHeight <= 0)
+						{
+							return null;
+						}
+
+						// Create a bitmap with the WebView's dimensions
+						var bitmap = Android.Graphics.Bitmap.CreateBitmap(webViewWidth, webViewHeight, Android.Graphics.Bitmap.Config.Argb8888);
+						var canvas = new Android.Graphics.Canvas(bitmap);
+
+						// Draw the WebView content to the canvas
+						PlatformView.Draw(canvas);
+
+						// Calculate aspect-preserving dimensions
+						float aspectRatio = webViewWidth / (float)webViewHeight;
+						int targetWidth = width;
+						int targetHeight = height;
+
+						if (aspectRatio > (width / (float)height))
+						{
+							// Image is wider - fit to width
+							targetHeight = (int)(width / aspectRatio);
+						}
+						else
+						{
+							// Image is taller - fit to height
+							targetWidth = (int)(height * aspectRatio);
+						}
+
+						// Resize the bitmap
+						var resizedBitmap = Android.Graphics.Bitmap.CreateScaledBitmap(bitmap, targetWidth, targetHeight, true);
+
+						// Save to temporary file
+						var tempPath = Path.Combine(Path.GetTempPath(), $"webview_thumbnail_{Guid.NewGuid()}.png");
+						using (var stream = System.IO.File.Create(tempPath))
+						{
+							await resizedBitmap.CompressAsync(Android.Graphics.Bitmap.CompressFormat.Png, 90, stream);
+						}
+
+						// Clean up bitmaps
+						bitmap.Dispose();
+						resizedBitmap.Dispose();
+
+						// Return as ImageSource
+						return Microsoft.Maui.Controls.ImageSource.FromFile(tempPath);
+					}
+					catch (Exception ex)
+					{
+						System.Diagnostics.Debug.WriteLine($"Error capturing thumbnail: {ex.Message}");
+						return null;
+					}
+				});
+			}
+			catch (Exception ex)
+			{
+				System.Diagnostics.Debug.WriteLine($"Error capturing thumbnail (outer): {ex.Message}");
+				return null;
+			}
+		}
 	}
 
 	class ValueCallback : Java.Lang.Object, IValueCallback

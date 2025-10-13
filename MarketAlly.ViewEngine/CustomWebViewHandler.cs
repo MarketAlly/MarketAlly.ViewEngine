@@ -107,6 +107,14 @@ namespace MarketAlly.Maui.ViewEngine
 		/// </summary>
 		public partial Task<PageData> ExtractPageDataAsync(bool forceRouteExtraction = false);
 
+		/// <summary>
+		/// Platform-specific method to capture a thumbnail screenshot of the current webpage.
+		/// </summary>
+		/// <param name="width">Target thumbnail width in pixels (default: 320)</param>
+		/// <param name="height">Target thumbnail height in pixels (default: 180)</param>
+		/// <returns>ImageSource containing the thumbnail, or null if capture fails</returns>
+		public partial Task<Microsoft.Maui.Controls.ImageSource> CaptureThumbnailAsync(int width = 320, int height = 180);
+
 		public string DecodeBase64(string base64String)
 		{
 			try
@@ -312,6 +320,12 @@ namespace MarketAlly.Maui.ViewEngine
 		public string Url { get; set; }
 		public List<RouteInfo> Routes { get; set; } = new List<RouteInfo>();
 		public List<RouteInfo> BodyRoutes { get; set; } = new List<RouteInfo>();
+
+		/// <summary>
+		/// Optional thumbnail image of the webpage.
+		/// Only populated when EnableThumbnailCapture is true or when CaptureThumbnailAsync() is called.
+		/// </summary>
+		public Microsoft.Maui.Controls.ImageSource Thumbnail { get; set; }
 	}
 
 	public class RouteInfo

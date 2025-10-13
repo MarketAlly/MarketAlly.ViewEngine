@@ -363,6 +363,85 @@ namespace MarketAlly.Maui.ViewEngine
 		{
 			// Not needed on iOS - WKWebView uses navigation delegate
 		}
+
+	public partial async Task<Microsoft.Maui.Controls.ImageSource> CaptureThumbnailAsync(int width = 320, int height = 180)
+	{
+		try
+		{
+			if (PlatformView == null)
+			{
+				return null;
+			}
+
+			// Ensure we're on the main thread
+			return await MainThread.InvokeOnMainThreadAsync(async () =>
+			{
+				try
+				{
+					// Create snapshot configuration
+					var config = new WKSnapshotConfiguration
+					{
+						Rect = new CoreGraphics.CGRect(0, 0, PlatformView.ScrollView.ContentSize.Width, PlatformView.ScrollView.ContentSize.Height)
+					};
+
+					// Take the snapshot
+					var image = await PlatformView.TakeSnapshotAsync(config);
+
+					if (image == null)
+					{
+						return null;
+					}
+
+					// Calculate aspect-preserving dimensions
+					float aspectRatio = (float)(image.Size.Width / image.Size.Height);
+					int targetWidth = width;
+					int targetHeight = height;
+
+					if (aspectRatio > (width / (float)height))
+					{
+						// Image is wider - fit to width
+						targetHeight = (int)(width / aspectRatio);
+					}
+					else
+					{
+						// Image is taller - fit to height
+						targetWidth = (int)(height * aspectRatio);
+					}
+
+					// Resize the image
+					UIGraphics.BeginImageContextWithOptions(new CoreGraphics.CGSize(targetWidth, targetHeight), false, 0);
+					image.Draw(new CoreGraphics.CGRect(0, 0, targetWidth, targetHeight));
+					var resizedImage = UIGraphics.GetImageFromCurrentImageContext();
+					UIGraphics.EndImageContext();
+
+					if (resizedImage == null)
+					{
+						return null;
+					}
+
+					// Convert to PNG data
+					var pngData = resizedImage.AsPNG();
+
+					// Save to temporary file
+					var tempPath = Path.Combine(Path.GetTempPath(), $"webview_thumbnail_{Guid.NewGuid()}.png");
+					pngData.Save(tempPath, true);
+
+					// Return as ImageSource
+					return Microsoft.Maui.Controls.ImageSource.FromFile(tempPath);
+				}
+				catch (Exception ex)
+				{
+					System.Diagnostics.Debug.WriteLine($"Error capturing thumbnail: {ex.Message}");
+					return null;
+				}
+			});
+		}
+		catch (Exception ex)
+		{
+			System.Diagnostics.Debug.WriteLine($"Error capturing thumbnail (outer): {ex.Message}");
+			return null;
+		}
+	}
 	}
 
 	}

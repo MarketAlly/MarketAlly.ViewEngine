@@ -49,6 +49,9 @@ namespace MarketAlly.Maui.ViewEngine
 					}
 				});
 
+		public static readonly BindableProperty EnableThumbnailCaptureProperty =
+			BindableProperty.Create(nameof(EnableThumbnailCapture), typeof(bool), typeof(WebView), false);
+
 		public WebView()
 		{
 			// Use both Loaded and HandlerChanged for maximum compatibility
@@ -392,6 +395,64 @@ namespace MarketAlly.Maui.ViewEngine
 			}
 
 			return new PageData { Title = "Error", Body = $"WebView handler is not available. Handler type: {Handler?.GetType().Name ?? "null"}" };
+		}
+
+		/// <summary>
+		/// When true, automatically captures thumbnails when PageDataChanged fires.
+		/// When false (default), thumbnails are only captured when CaptureThumbnailAsync() is explicitly called.
+		/// Set to true only if you need automatic thumbnail generation (e.g., for tab switchers).
+		/// </summary>
+		public bool EnableThumbnailCapture
+		{
+			get => (bool)GetValue(EnableThumbnailCaptureProperty);
+			set => SetValue(EnableThumbnailCaptureProperty, value);
+		}
+
+		/// <summary>
+		/// Captures a thumbnail screenshot of the current webpage.
+		/// Returns null if thumbnail capture fails or handler is not available.
+		/// </summary>
+		/// <param name="width">Target thumbnail width in pixels (default: 320)</param>
+		/// <param name="height">Target thumbnail height in pixels (default: 180)</param>
+		/// <returns>ImageSource containing the thumbnail, or null if capture fails</returns>
+		public async Task<Microsoft.Maui.Controls.ImageSource> CaptureThumbnailAsync(int width = 320, int height = 180)
+		{
+			// Wait for handler to be attached if it's not ready yet
+			if (Handler == null)
+			{
+				// Try waiting for handler attachment (common when control is nested)
+				var tcs = new TaskCompletionSource<bool>();
+				EventHandler handlerChanged = null;
+
+				handlerChanged = (s, e) =>
+				{
+					if (Handler != null)
+					{
+						HandlerChanged -= handlerChanged;
+						tcs.TrySetResult(true);
+					}
+				};
+
+				HandlerChanged += handlerChanged;
+
+				// Wait up to 5 seconds for handler attachment
+				var timeoutTask = Task.Delay(5000);
+				var completedTask = await Task.WhenAny(tcs.Task, timeoutTask);
+
+				HandlerChanged -= handlerChanged;
+
+				if (completedTask == timeoutTask)
+				{
+					return null; // Handler not available
+				}
+			}
+
+			if (Handler is WebViewHandler customHandler)
+			{
+				return await customHandler.CaptureThumbnailAsync(width, height);
+			}
+
+			return null;
 		}
 	}
 }
