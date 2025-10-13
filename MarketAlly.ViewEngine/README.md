@@ -129,6 +129,184 @@ Console.WriteLine($"URL: {pageData.Url}");
 
 ---
 
+## **📌 Using WebView in Custom Controls (Nested Usage)**
+
+### **🔹 Handler Registration is Required**
+
+⚠️ **IMPORTANT:** Any app using this control **must** register the handler in `MauiProgram.cs` (see setup section above). Without this registration, the control will fail with "WebView handler is not available" errors.
+
+### **🔹 Creating a Custom Control that Wraps WebView**
+
+If you're building a custom control that includes this WebView, follow these patterns:
+
+**Option A: Using XAML (Recommended)**
+
+```xml
+<!-- MyBrowserControl.xaml -->
+<ContentView xmlns="http://schemas.microsoft.com/dotnet/2021/maui"
+             xmlns:x="http://schemas.microsoft.com/winfx/2009/xaml"
+             xmlns:viewengine="clr-namespace:MarketAlly.Maui.ViewEngine;assembly=MarketAlly.Maui.ViewEngine"
+             xmlns:local="clr-namespace:MyApp.Controls"
+             x:Class="MyApp.Controls.MyBrowserControl"
+             x:Name="this">
+
+    <Grid>
+        <!-- Bind to the control's properties using RelativeSource -->
+        <viewengine:WebView x:Name="BrowserView"
+                           Source="{Binding Url, Source={RelativeSource AncestorType={x:Type local:MyBrowserControl}}}"
+                           PageDataChanged="OnPageDataChanged" />
+    </Grid>
+</ContentView>
+```
+
+```csharp
+// MyBrowserControl.xaml.cs
+public partial class MyBrowserControl : ContentView
+{
+    public static readonly BindableProperty UrlProperty =
+        BindableProperty.Create(nameof(Url), typeof(string), typeof(MyBrowserControl), default(string));
+
+    public string Url
+    {
+        get => (string)GetValue(UrlProperty);
+        set => SetValue(UrlProperty, value);
+    }
+
+    public MyBrowserControl()
+    {
+        InitializeComponent();
+    }
+
+    private void OnPageDataChanged(object sender, PageData pageData)
+    {
+        // Handle page data from the nested WebView
+        // Optionally expose your own event or callback
+    }
+}
+```
+
+**Option B: Creating in Code-Behind**
+
+```csharp
+public partial class MyBrowserControl : ContentView
+{
+    private MarketAlly.Maui.ViewEngine.WebView _webView;
+
+    public static readonly BindableProperty UrlProperty =
+        BindableProperty.Create(nameof(Url), typeof(string), typeof(MyBrowserControl),
+            default(string), propertyChanged: OnUrlChanged);
+
+    public string Url
+    {
+        get => (string)GetValue(UrlProperty);
+        set => SetValue(UrlProperty, value);
+    }
+
+    public MyBrowserControl()
+    {
+        InitializeComponent();
+
+        _webView = new MarketAlly.Maui.ViewEngine.WebView();
+        _webView.PageDataChanged += OnPageDataChanged;
+
+        Content = _webView;
+    }
+
+    private static void OnUrlChanged(BindableObject bindable, object oldValue, object newValue)
+    {
+        var control = (MyBrowserControl)bindable;
+        if (control._webView != null && newValue is string url)
+        {
+            control._webView.Source = url;
+        }
+    }
+
+    private void OnPageDataChanged(object sender, PageData pageData)
+    {
+        // Handle page data
+    }
+}
+```
+
+### **🔹 Common Mistakes When Nesting**
+
+❌ **Don't do this:**
+```csharp
+// Setting BindingContext = this blocks parent bindings
+public MyBrowserControl()
+{
+    InitializeComponent();
+    BindingContext = this; // ❌ WRONG - breaks nested control bindings
+}
+```
+
+❌ **Don't reference the wrong WebView type:**
+```csharp
+// This uses MAUI's built-in WebView, not the custom one
+Microsoft.Maui.Controls.WebView webView = new(); // ❌ WRONG
+```
+
+✅ **Do this:**
+```csharp
+// Always use the fully qualified type
+MarketAlly.Maui.ViewEngine.WebView webView = new(); // ✅ CORRECT
+```
+
+✅ **Use RelativeSource binding in XAML:**
+```xml
+<!-- Bind to the parent control's properties -->
+<viewengine:WebView
+    Source="{Binding Url, Source={RelativeSource AncestorType={x:Type local:MyBrowserControl}}}" />
+```
+
+### **🔹 Handler Timing and Lifecycle**
+
+The WebView handler is attached **asynchronously** after the control is added to the visual tree. The control automatically handles this:
+
+```csharp
+// The handler might not be immediately available
+var webView = new MarketAlly.Maui.ViewEngine.WebView();
+Debug.WriteLine($"Handler on creation: {webView.Handler}"); // null
+
+// Add to visual tree
+Content = webView;
+
+// Handler will be attached after visual tree construction
+// The control waits up to 5 seconds for handler attachment automatically
+```
+
+If you call `GetPageDataAsync()` or `ExtractRoutesAsync()` before the handler is attached, the control will:
+1. Wait up to 5 seconds for the handler to attach
+2. Return an error message if the handler never attaches
+3. Include the handler type in error messages for debugging
+
+### **🔹 Using in DataTemplate or ControlTemplate**
+
+When using inside templates, bind to the item or templated parent:
+
+```xml
+<!-- Inside a DataTemplate (context is the data item) -->
+<DataTemplate>
+    <viewengine:WebView Source="{Binding ItemUrl}" />
+</DataTemplate>
+
+<!-- Inside a ControlTemplate (use TemplateBinding) -->
+<ControlTemplate>
+    <viewengine:WebView Source="{TemplateBinding Url}" />
+</ControlTemplate>
+
+<!-- Accessing page-level properties from inside a template -->
+<viewengine:WebView>
+    <viewengine:WebView.GestureRecognizers>
+        <TapGestureRecognizer
+            Command="{Binding Source={RelativeSource AncestorType={x:Type ContentPage}},
+                             Path=BindingContext.NavigateCommand}" />
+    </viewengine:WebView.GestureRecognizers>
+</viewengine:WebView>
+```
+
+---
+
 ## **📌 Advanced Features**
 
 ### **🔹 PageData Object**
@@ -423,6 +601,36 @@ Content monitoring is built-in and optimized with debouncing. If you only need n
 
 ### ❓ **Can I customize the PDF extraction behavior?**
 The PDF extraction happens automatically. You can identify PDF content in the `PageDataChanged` event by checking if the title contains "PDF" or by examining the `MetaDescription` which includes page count information.
+
+### ❓ **I'm getting "WebView handler is not available" errors. What's wrong?**
+
+This error means the custom handler is not registered. **Solution:**
+
+1. **Check `MauiProgram.cs`** - Ensure you have this code:
+   ```csharp
+   builder.ConfigureMauiHandlers(handlers =>
+   {
+       handlers.AddHandler(typeof(MarketAlly.Maui.ViewEngine.WebView),
+                          typeof(MarketAlly.Maui.ViewEngine.WebViewHandler));
+   });
+   ```
+
+2. **Verify the namespace** - Make sure you're using `MarketAlly.Maui.ViewEngine.WebView`, not `Microsoft.Maui.Controls.WebView`
+
+3. **Check for timing issues** - If the error includes "timeout waiting for handler", the control is taking too long to attach to the visual tree. This can happen if:
+   - The control is deeply nested
+   - The parent control has complex initialization
+   - Platform-specific handlers are slow to initialize
+
+### ❓ **Can I use this control inside my own custom control?**
+
+Yes! See the **"Using WebView in Custom Controls (Nested Usage)"** section above for complete examples and best practices.
+
+**Key requirements:**
+- ✅ Handler must be registered in `MauiProgram.cs`
+- ✅ Don't set `BindingContext = this` in your custom control
+- ✅ Use `RelativeSource` binding to connect parent properties
+- ✅ Always reference `MarketAlly.Maui.ViewEngine.WebView`, not the built-in WebView
 
 ---
 

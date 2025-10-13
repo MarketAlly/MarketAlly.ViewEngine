@@ -311,12 +311,42 @@ namespace MarketAlly.Maui.ViewEngine
 		/// </summary>
 		public async Task<PageData> GetPageDataAsync()
 		{
+			// Wait for handler to be attached if it's not ready yet
+			if (Handler == null)
+			{
+				// Try waiting for handler attachment (common when control is nested)
+				var tcs = new TaskCompletionSource<bool>();
+				EventHandler handlerChanged = null;
+
+				handlerChanged = (s, e) =>
+				{
+					if (Handler != null)
+					{
+						HandlerChanged -= handlerChanged;
+						tcs.TrySetResult(true);
+					}
+				};
+
+				HandlerChanged += handlerChanged;
+
+				// Wait up to 5 seconds for handler attachment
+				var timeoutTask = Task.Delay(5000);
+				var completedTask = await Task.WhenAny(tcs.Task, timeoutTask);
+
+				HandlerChanged -= handlerChanged;
+
+				if (completedTask == timeoutTask)
+				{
+					return new PageData { Title = "Error", Body = "WebView handler is not available (timeout waiting for handler)." };
+				}
+			}
+
 			if (Handler is WebViewHandler customHandler)
 			{
 				return await customHandler.GetPageDataAsync();
 			}
 
-			return new PageData { Title = "Error", Body = "WebView handler is not available." };
+			return new PageData { Title = "Error", Body = $"WebView handler is not available. Handler type: {Handler?.GetType().Name ?? "null"}" };
 		}
 
 		/// <summary>
@@ -326,12 +356,42 @@ namespace MarketAlly.Maui.ViewEngine
 		/// </summary>
 		public async Task<PageData> ExtractRoutesAsync()
 		{
+			// Wait for handler to be attached if it's not ready yet
+			if (Handler == null)
+			{
+				// Try waiting for handler attachment (common when control is nested)
+				var tcs = new TaskCompletionSource<bool>();
+				EventHandler handlerChanged = null;
+
+				handlerChanged = (s, e) =>
+				{
+					if (Handler != null)
+					{
+						HandlerChanged -= handlerChanged;
+						tcs.TrySetResult(true);
+					}
+				};
+
+				HandlerChanged += handlerChanged;
+
+				// Wait up to 5 seconds for handler attachment
+				var timeoutTask = Task.Delay(5000);
+				var completedTask = await Task.WhenAny(tcs.Task, timeoutTask);
+
+				HandlerChanged -= handlerChanged;
+
+				if (completedTask == timeoutTask)
+				{
+					return new PageData { Title = "Error", Body = "WebView handler is not available (timeout waiting for handler)." };
+				}
+			}
+
 			if (Handler is WebViewHandler customHandler)
 			{
 				return await customHandler.ExtractRoutesAsync();
 			}
 
-			return new PageData { Title = "Error", Body = "WebView handler is not available." };
+			return new PageData { Title = "Error", Body = $"WebView handler is not available. Handler type: {Handler?.GetType().Name ?? "null"}" };
 		}
 	}
 }
