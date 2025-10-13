@@ -36,6 +36,28 @@ Or, in **Visual Studio**:
 After installing, you **must register the custom WebView handler** inside your `.NET MAUI` app.
 
 ### **Modify `MauiProgram.cs` to add the handler:**
+
+**Option 1: Using the Extension Method (Recommended)**
+```csharp
+using MarketAlly.Maui.ViewEngine;
+
+public static class MauiProgram
+{
+    public static MauiApp CreateMauiApp()
+    {
+        var builder = MauiApp.CreateBuilder();
+
+        builder
+            .UseMauiApp<App>()
+            .ConfigureFonts(fonts => { /* ... */ })
+            .UseMarketAllyViewEngine(); // ✅ One line registration!
+
+        return builder.Build();
+    }
+}
+```
+
+**Option 2: Manual Registration**
 ```csharp
 using MarketAlly.Maui.ViewEngine;
 
@@ -51,6 +73,7 @@ builder.ConfigureMauiHandlers(handlers =>
 
 return builder.Build();
 ```
+
 ✅ **This ensures your app correctly loads the `WebView` with platform-specific optimizations.**
 
 ---
@@ -608,6 +631,10 @@ This error means the custom handler is not registered. **Solution:**
 
 1. **Check `MauiProgram.cs`** - Ensure you have this code:
    ```csharp
+   // Option 1: Extension method (easiest)
+   builder.UseMarketAllyViewEngine();
+
+   // Option 2: Manual registration
    builder.ConfigureMauiHandlers(handlers =>
    {
        handlers.AddHandler(typeof(MarketAlly.Maui.ViewEngine.WebView),
