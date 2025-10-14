@@ -145,34 +145,34 @@ namespace MarketAlly.Maui.ViewEngine
 				webView.Configuration.Preferences.JavaScriptEnabled = true;
 				webView.Configuration.Preferences.JavaScriptCanOpenWindowsAutomatically = true;
 
-			// Set user agent based on UserAgentMode property
-			var customWebView = VirtualView as WebView;
-			var customUserAgent = customWebView?.UserAgent;
-			var userAgentMode = customWebView?.UserAgentMode ?? UserAgentMode.Default;
+				// Set user agent based on UserAgentMode property
+				var customWebView = VirtualView as WebView;
+				var customUserAgent = customWebView?.UserAgent;
+				var userAgentMode = customWebView?.UserAgentMode ?? UserAgentMode.Default;
 
-			if (!string.IsNullOrEmpty(customUserAgent))
-			{
-				// Custom user agent provided - use it
-				webView.CustomUserAgent = customUserAgent;
-			}
-			else
-			{
-				// Determine user agent based on mode
-				// Default for iOS is Mobile
-				bool useMobile = userAgentMode == UserAgentMode.Mobile ||
-				                 (userAgentMode == UserAgentMode.Default);
-
-				if (useMobile)
+				if (!string.IsNullOrEmpty(customUserAgent))
 				{
-					// Mobile: iOS Safari
-					webView.CustomUserAgent = "Mozilla/5.0 (iPhone; CPU iPhone OS 17_0 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/17.0 Mobile/15E148 Safari/604.1";
+					// Custom user agent provided - use it
+					webView.CustomUserAgent = customUserAgent;
 				}
 				else
 				{
-					// Desktop: Mac Safari
-					webView.CustomUserAgent = "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36";
+					// Determine user agent based on mode
+					// Default for iOS is Mobile
+					bool useMobile = userAgentMode == UserAgentMode.Mobile ||
+									 (userAgentMode == UserAgentMode.Default);
+
+					if (useMobile)
+					{
+						// Mobile: iOS Safari
+						webView.CustomUserAgent = "Mozilla/5.0 (iPhone; CPU iPhone OS 17_0 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/17.0 Mobile/15E148 Safari/604.1";
+					}
+					else
+					{
+						// Desktop: Mac Safari
+						webView.CustomUserAgent = "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36";
+					}
 				}
-			}
 
 				// Add script message handler for content changes
 				_scriptMessageHandler = new CustomScriptMessageHandler(this);
@@ -393,85 +393,84 @@ namespace MarketAlly.Maui.ViewEngine
 			// Not needed on iOS - WKWebView uses navigation delegate
 		}
 
-	public partial async Task<Microsoft.Maui.Controls.ImageSource> CaptureThumbnailAsync(int width = 320, int height = 180)
-	{
-		try
+		public partial async Task<Microsoft.Maui.Controls.ImageSource> CaptureThumbnailAsync(int width = 320, int height = 180)
 		{
-			if (PlatformView == null)
+			try
 			{
-				return null;
-			}
-
-			// Ensure we're on the main thread
-			return await MainThread.InvokeOnMainThreadAsync(async () =>
-			{
-				try
+				if (PlatformView == null)
 				{
-					// Create snapshot configuration for visible viewport only
-					var config = new WKSnapshotConfiguration
-					{
-						// Use null Rect to capture the visible viewport (default behavior)
-						Rect = CoreGraphics.CGRect.Null
-					};
-
-					// Take the snapshot of the visible viewport
-					var image = await PlatformView.TakeSnapshotAsync(config);
-
-					if (image == null)
-					{
-						return null;
-					}
-
-					// Calculate aspect-preserving dimensions
-					float aspectRatio = (float)(image.Size.Width / image.Size.Height);
-					int targetWidth = width;
-					int targetHeight = height;
-
-					if (aspectRatio > (width / (float)height))
-					{
-						// Image is wider - fit to width
-						targetHeight = (int)(width / aspectRatio);
-					}
-					else
-					{
-						// Image is taller - fit to height
-						targetWidth = (int)(height * aspectRatio);
-					}
-
-					// Resize the image
-					UIGraphics.BeginImageContextWithOptions(new CoreGraphics.CGSize(targetWidth, targetHeight), false, 0);
-					image.Draw(new CoreGraphics.CGRect(0, 0, targetWidth, targetHeight));
-					var resizedImage = UIGraphics.GetImageFromCurrentImageContext();
-					UIGraphics.EndImageContext();
-
-					if (resizedImage == null)
-					{
-						return null;
-					}
-
-					// Convert to PNG data
-					var pngData = resizedImage.AsPNG();
-
-					// Save to temporary file
-					var tempPath = Path.Combine(Path.GetTempPath(), $"webview_thumbnail_{Guid.NewGuid()}.png");
-					pngData.Save(tempPath, true);
-
-					// Return as ImageSource
-					return Microsoft.Maui.Controls.ImageSource.FromFile(tempPath);
-				}
-				catch (Exception ex)
-				{
-					System.Diagnostics.Debug.WriteLine($"Error capturing thumbnail: {ex.Message}");
 					return null;
 				}
-			});
-		}
-		catch (Exception ex)
-		{
-			System.Diagnostics.Debug.WriteLine($"Error capturing thumbnail (outer): {ex.Message}");
-			return null;
-		}
-	}
-	}
 
+				// Ensure we're on the main thread
+				return await MainThread.InvokeOnMainThreadAsync(async () =>
+				{
+					try
+					{
+						// Create snapshot configuration for visible viewport only
+						var config = new WKSnapshotConfiguration
+						{
+							// Use null Rect to capture the visible viewport (default behavior)
+							Rect = CoreGraphics.CGRect.Null
+						};
+
+						// Take the snapshot of the visible viewport
+						var image = await PlatformView.TakeSnapshotAsync(config);
+
+						if (image == null)
+						{
+							return null;
+						}
+
+						// Calculate aspect-preserving dimensions
+						float aspectRatio = (float)(image.Size.Width / image.Size.Height);
+						int targetWidth = width;
+						int targetHeight = height;
+
+						if (aspectRatio > (width / (float)height))
+						{
+							// Image is wider - fit to width
+							targetHeight = (int)(width / aspectRatio);
+						}
+						else
+						{
+							// Image is taller - fit to height
+							targetWidth = (int)(height * aspectRatio);
+						}
+
+						// Resize the image
+						UIGraphics.BeginImageContextWithOptions(new CoreGraphics.CGSize(targetWidth, targetHeight), false, 0);
+						image.Draw(new CoreGraphics.CGRect(0, 0, targetWidth, targetHeight));
+						var resizedImage = UIGraphics.GetImageFromCurrentImageContext();
+						UIGraphics.EndImageContext();
+
+						if (resizedImage == null)
+						{
+							return null;
+						}
+
+						// Convert to PNG data
+						var pngData = resizedImage.AsPNG();
+
+						// Save to temporary file
+						var tempPath = Path.Combine(Path.GetTempPath(), $"webview_thumbnail_{Guid.NewGuid()}.png");
+						pngData.Save(tempPath, true);
+
+						// Return as ImageSource
+						return Microsoft.Maui.Controls.ImageSource.FromFile(tempPath);
+					}
+					catch (Exception ex)
+					{
+						System.Diagnostics.Debug.WriteLine($"Error capturing thumbnail: {ex.Message}");
+						return null;
+					}
+				});
+			}
+			catch (Exception ex)
+			{
+				System.Diagnostics.Debug.WriteLine($"Error capturing thumbnail (outer): {ex.Message}");
+				return null;
+			}
+		}
 	}
+}

@@ -263,7 +263,7 @@ namespace MarketAlly.Maui.ViewEngine
 
 
 				// Set the User-Agent
-// SetUserAgent(VirtualView?.UserAgent); // Commented out - may cause crash if CoreWebView2 not fully ready
+				// SetUserAgent(VirtualView?.UserAgent); // Commented out - may cause crash if CoreWebView2 not fully ready
 			}
 			catch (Exception ex)
 			{
@@ -359,49 +359,49 @@ namespace MarketAlly.Maui.ViewEngine
 			}
 		}
 
-	public void SetUserAgent(string userAgent)
-	{
-		try
+		public void SetUserAgent(string userAgent)
 		{
-			if (PlatformView?.CoreWebView2?.Settings != null)
+			try
 			{
-				// Get the WebView to access UserAgentMode
-				var webView = VirtualView as WebView;
-				var customUserAgent = userAgent;
-				var userAgentMode = webView?.UserAgentMode ?? UserAgentMode.Default;
-
-				if (!string.IsNullOrEmpty(customUserAgent))
+				if (PlatformView?.CoreWebView2?.Settings != null)
 				{
-					// Custom user agent provided - use it
-					PlatformView.CoreWebView2.Settings.UserAgent = customUserAgent;
-				}
-				else
-				{
-					// Determine user agent based on mode
-					// Default for Windows is Desktop
-					bool useDesktop = userAgentMode == UserAgentMode.Desktop ||
-					                  (userAgentMode == UserAgentMode.Default);
+					// Get the WebView to access UserAgentMode
+					var webView = VirtualView as WebView;
+					var customUserAgent = userAgent;
+					var userAgentMode = webView?.UserAgentMode ?? UserAgentMode.Default;
 
-					if (useDesktop)
+					if (!string.IsNullOrEmpty(customUserAgent))
 					{
-						// Desktop: Windows Chrome
-						PlatformView.CoreWebView2.Settings.UserAgent = "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36";
+						// Custom user agent provided - use it
+						PlatformView.CoreWebView2.Settings.UserAgent = customUserAgent;
 					}
 					else
 					{
-						// Mobile: Android Chrome
-						PlatformView.CoreWebView2.Settings.UserAgent = "Mozilla/5.0 (Linux; Android 13) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.6099.144 Mobile Safari/537.36";
+						// Determine user agent based on mode
+						// Default for Windows is Desktop
+						bool useDesktop = userAgentMode == UserAgentMode.Desktop ||
+										  (userAgentMode == UserAgentMode.Default);
+
+						if (useDesktop)
+						{
+							// Desktop: Windows Chrome
+							PlatformView.CoreWebView2.Settings.UserAgent = "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36";
+						}
+						else
+						{
+							// Mobile: Android Chrome
+							PlatformView.CoreWebView2.Settings.UserAgent = "Mozilla/5.0 (Linux; Android 13) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.6099.144 Mobile Safari/537.36";
+						}
 					}
 				}
+				else
+				{
+				}
 			}
-			else
+			catch (Exception ex)
 			{
 			}
 		}
-		catch (Exception ex)
-		{
-		}
-	}
 
 		public async partial Task<PageData> ExtractPageDataAsync(bool forceRouteExtraction = false)
 		{
@@ -503,77 +503,76 @@ namespace MarketAlly.Maui.ViewEngine
 			// Not needed on Windows - WebView2 uses event handlers instead
 		}
 
-	public partial async Task<Microsoft.Maui.Controls.ImageSource> CaptureThumbnailAsync(int width = 320, int height = 180)
-	{
-		try
+		public partial async Task<Microsoft.Maui.Controls.ImageSource> CaptureThumbnailAsync(int width = 320, int height = 180)
 		{
-			if (PlatformView?.CoreWebView2 == null)
+			try
 			{
-				return null;
-			}
-
-			// Create a temporary file to save the screenshot
-			var tempPath = Path.Combine(Path.GetTempPath(), $"webview_thumbnail_{Guid.NewGuid()}.png");
-
-			// Capture the webpage screenshot
-			using (var stream = System.IO.File.Create(tempPath))
-			{
-				await PlatformView.CoreWebView2.CapturePreviewAsync(
-					CoreWebView2CapturePreviewImageFormat.Png,
-					stream.AsRandomAccessStream());
-			}
-
-			// Load the captured image and resize it
-			using (var fileStream = System.IO.File.OpenRead(tempPath))
-			{
-				// Load image using MAUI Graphics
-				var image = Microsoft.Maui.Graphics.Platform.PlatformImage.FromStream(fileStream);
-
-				if (image == null)
+				if (PlatformView?.CoreWebView2 == null)
 				{
-					System.IO.File.Delete(tempPath);
 					return null;
 				}
 
-				// Calculate aspect-preserving dimensions
-				float aspectRatio = image.Width / (float)image.Height;
-				int targetWidth = width;
-				int targetHeight = height;
+				// Create a temporary file to save the screenshot
+				var tempPath = Path.Combine(Path.GetTempPath(), $"webview_thumbnail_{Guid.NewGuid()}.png");
 
-				if (aspectRatio > (width / (float)height))
+				// Capture the webpage screenshot
+				using (var stream = System.IO.File.Create(tempPath))
 				{
-					// Image is wider - fit to width
-					targetHeight = (int)(width / aspectRatio);
-				}
-				else
-				{
-					// Image is taller - fit to height
-					targetWidth = (int)(height * aspectRatio);
+					await PlatformView.CoreWebView2.CapturePreviewAsync(
+						CoreWebView2CapturePreviewImageFormat.Png,
+						stream.AsRandomAccessStream());
 				}
 
-				// Resize the image
-				var resized = image.Resize(targetWidth, targetHeight, Microsoft.Maui.Graphics.ResizeMode.Fit);
-
-				// Save resized image to a new temp file
-				var resizedPath = Path.Combine(Path.GetTempPath(), $"webview_thumbnail_resized_{Guid.NewGuid()}.png");
-				using (var outputStream = System.IO.File.Create(resizedPath))
+				// Load the captured image and resize it
+				using (var fileStream = System.IO.File.OpenRead(tempPath))
 				{
-					resized.Save(outputStream);
+					// Load image using MAUI Graphics
+					var image = Microsoft.Maui.Graphics.Platform.PlatformImage.FromStream(fileStream);
+
+					if (image == null)
+					{
+						System.IO.File.Delete(tempPath);
+						return null;
+					}
+
+					// Calculate aspect-preserving dimensions
+					float aspectRatio = image.Width / (float)image.Height;
+					int targetWidth = width;
+					int targetHeight = height;
+
+					if (aspectRatio > (width / (float)height))
+					{
+						// Image is wider - fit to width
+						targetHeight = (int)(width / aspectRatio);
+					}
+					else
+					{
+						// Image is taller - fit to height
+						targetWidth = (int)(height * aspectRatio);
+					}
+
+					// Resize the image
+					var resized = image.Resize(targetWidth, targetHeight, Microsoft.Maui.Graphics.ResizeMode.Fit);
+
+					// Save resized image to a new temp file
+					var resizedPath = Path.Combine(Path.GetTempPath(), $"webview_thumbnail_resized_{Guid.NewGuid()}.png");
+					using (var outputStream = System.IO.File.Create(resizedPath))
+					{
+						resized.Save(outputStream);
+					}
+
+					// Clean up original temp file
+					System.IO.File.Delete(tempPath);
+
+					// Return as ImageSource
+					return Microsoft.Maui.Controls.ImageSource.FromFile(resizedPath);
 				}
-
-				// Clean up original temp file
-				System.IO.File.Delete(tempPath);
-
-				// Return as ImageSource
-				return Microsoft.Maui.Controls.ImageSource.FromFile(resizedPath);
+			}
+			catch (Exception ex)
+			{
+				System.Diagnostics.Debug.WriteLine($"Error capturing thumbnail: {ex.Message}");
+				return null;
 			}
 		}
-		catch (Exception ex)
-		{
-			System.Diagnostics.Debug.WriteLine($"Error capturing thumbnail: {ex.Message}");
-			return null;
-		}
-	}
-
 	}
 }

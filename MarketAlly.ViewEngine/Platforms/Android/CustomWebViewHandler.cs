@@ -586,7 +586,7 @@ namespace MarketAlly.Maui.ViewEngine
 	/// <summary>
 	/// Capture WebView content by drawing to Canvas
 	/// This captures ONLY the WebView content, not overlays or other views on top
-	/// Works reliably on all Android versions
+	/// Properly handles scrolled content
 	/// </summary>
 	private async Task<Android.Graphics.Bitmap> CaptureWithPixelCopyAsync(int width, int height)
 	{
@@ -596,7 +596,15 @@ namespace MarketAlly.Maui.ViewEngine
 			var bitmap = Android.Graphics.Bitmap.CreateBitmap(width, height, Android.Graphics.Bitmap.Config.Argb8888);
 			var canvas = new Android.Graphics.Canvas(bitmap);
 
-			// Draw the WebView content directly to canvas
+			// Save current scroll position
+			int scrollX = PlatformView.ScrollX;
+			int scrollY = PlatformView.ScrollY;
+
+			// Translate canvas to match current scroll position
+			// This ensures we capture what's currently visible, not the top of the page
+			canvas.Translate(-scrollX, -scrollY);
+
+			// Draw the WebView content directly to canvas at the scrolled position
 			// This captures ONLY the WebView, not any overlays or other UI elements
 			PlatformView.Draw(canvas);
 
