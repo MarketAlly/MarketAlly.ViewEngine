@@ -378,13 +378,14 @@ namespace MarketAlly.Maui.ViewEngine
 			{
 				try
 				{
-					// Create snapshot configuration
+					// Create snapshot configuration for visible viewport only
 					var config = new WKSnapshotConfiguration
 					{
-						Rect = new CoreGraphics.CGRect(0, 0, PlatformView.ScrollView.ContentSize.Width, PlatformView.ScrollView.ContentSize.Height)
+						// Use null Rect to capture the visible viewport (default behavior)
+						Rect = CoreGraphics.CGRect.Null
 					};
 
-					// Take the snapshot
+					// Take the snapshot of the visible viewport
 					var image = await PlatformView.TakeSnapshotAsync(config);
 
 					if (image == null)

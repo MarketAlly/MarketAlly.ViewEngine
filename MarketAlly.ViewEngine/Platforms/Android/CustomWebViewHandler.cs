@@ -443,24 +443,35 @@ namespace MarketAlly.Maui.ViewEngine
 				{
 					try
 					{
-						// Get the WebView's dimensions
-						int webViewWidth = PlatformView.Width;
-						int webViewHeight = PlatformView.Height;
+						// Get the visible viewport dimensions (what user actually sees)
+						int viewportWidth = PlatformView.Width;
+						int viewportHeight = PlatformView.Height;
 
-						if (webViewWidth <= 0 || webViewHeight <= 0)
+						if (viewportWidth <= 0 || viewportHeight <= 0)
 						{
 							return null;
 						}
 
-						// Create a bitmap with the WebView's dimensions
-						var bitmap = Android.Graphics.Bitmap.CreateBitmap(webViewWidth, webViewHeight, Android.Graphics.Bitmap.Config.Argb8888);
-						var canvas = new Android.Graphics.Canvas(bitmap);
+						Android.Graphics.Bitmap bitmap;
 
-						// Draw the WebView content to the canvas
-						PlatformView.Draw(canvas);
+						// Use PixelCopy API for Android 8.0+ (API 26+) - the modern, correct way
+						if (Android.OS.Build.VERSION.SdkInt >= Android.OS.BuildVersionCodes.O)
+						{
+							bitmap = await CaptureWithPixelCopyAsync(viewportWidth, viewportHeight);
+						}
+						else
+						{
+							// Fallback for older Android versions (below API 26)
+							bitmap = CaptureWithDrawingCache(viewportWidth, viewportHeight);
+						}
+
+						if (bitmap == null)
+						{
+							return null;
+						}
 
 						// Calculate aspect-preserving dimensions
-						float aspectRatio = webViewWidth / (float)webViewHeight;
+						float aspectRatio = viewportWidth / (float)viewportHeight;
 						int targetWidth = width;
 						int targetHeight = height;
 
@@ -503,6 +514,124 @@ namespace MarketAlly.Maui.ViewEngine
 			{
 				System.Diagnostics.Debug.WriteLine($"Error capturing thumbnail (outer): {ex.Message}");
 				return null;
+			}
+		}
+
+		/// <summary>
+		/// Modern way to capture WebView content using PixelCopy API (Android 8.0+)
+		/// This is the correct, non-deprecated method that properly captures visible viewport
+		/// </summary>
+		private async Task<Android.Graphics.Bitmap> CaptureWithPixelCopyAsync(int width, int height)
+		{
+			var tcs = new TaskCompletionSource<Android.Graphics.Bitmap>();
+
+			try
+			{
+				// Create bitmap to receive the pixel data
+				var bitmap = Android.Graphics.Bitmap.CreateBitmap(width, height, Android.Graphics.Bitmap.Config.Argb8888);
+
+				// Get the location of the WebView on screen
+				int[] location = new int[2];
+				PlatformView.GetLocationInWindow(location);
+
+				// Define the source rectangle (the visible viewport)
+				var srcRect = new Android.Graphics.Rect(
+					location[0],
+					location[1],
+					location[0] + width,
+					location[1] + height
+				);
+
+				// Use PixelCopy to capture the view content
+				Android.Views.PixelCopy.Request(
+					Platform.CurrentActivity.Window,
+					srcRect,
+					bitmap,
+					new PixelCopyListener(bitmap, tcs),
+					new Android.OS.Handler(Android.OS.Looper.MainLooper)
+				);
+
+				// Wait for the pixel copy to complete
+				var result = await tcs.Task;
+				return result;
+			}
+			catch (Exception ex)
+			{
+				System.Diagnostics.Debug.WriteLine($"Error in PixelCopy capture: {ex.Message}");
+				return null;
+			}
+		}
+
+		/// <summary>
+		/// Fallback method for Android versions below 8.0 using DrawingCache
+		/// This is deprecated but necessary for older devices
+		/// </summary>
+		private Android.Graphics.Bitmap CaptureWithDrawingCache(int width, int height)
+		{
+			try
+			{
+#pragma warning disable CS0618 // Type or member is obsolete
+				// Enable drawing cache temporarily
+				PlatformView.DrawingCacheEnabled = true;
+				PlatformView.BuildDrawingCache(true);
+
+				// Get the drawing cache bitmap
+				var cacheBitmap = PlatformView.GetDrawingCache(true);
+
+				// Create a mutable copy since the cache bitmap is immutable
+				Android.Graphics.Bitmap bitmap;
+				if (cacheBitmap != null)
+				{
+					bitmap = cacheBitmap.Copy(Android.Graphics.Bitmap.Config.Argb8888, false);
+				}
+				else
+				{
+					// Last resort fallback: Create bitmap and draw manually
+					bitmap = Android.Graphics.Bitmap.CreateBitmap(width, height, Android.Graphics.Bitmap.Config.Argb8888);
+					var canvas = new Android.Graphics.Canvas(bitmap);
+					canvas.DrawColor(Android.Graphics.Color.White);
+					PlatformView.Draw(canvas);
+				}
+
+				// Disable drawing cache
+				PlatformView.DrawingCacheEnabled = false;
+#pragma warning restore CS0618 // Type or member is obsolete
+
+				return bitmap;
+			}
+			catch (Exception ex)
+			{
+				System.Diagnostics.Debug.WriteLine($"Error in DrawingCache capture: {ex.Message}");
+				return null;
+			}
+		}
+
+		/// <summary>
+		/// Listener for PixelCopy operations
+		/// </summary>
+		private class PixelCopyListener : Java.Lang.Object, Android.Views.PixelCopy.IOnPixelCopyFinishedListener
+		{
+			private readonly Android.Graphics.Bitmap _bitmap;
+			private readonly TaskCompletionSource<Android.Graphics.Bitmap> _tcs;
+
+			public PixelCopyListener(Android.Graphics.Bitmap bitmap, TaskCompletionSource<Android.Graphics.Bitmap> tcs)
+			{
+				_bitmap = bitmap;
+				_tcs = tcs;
+			}
+
+			public void OnPixelCopyFinished(int copyResult)
+			{
+				if (copyResult == (int)Android.Views.PixelCopyResult.Success)
+				{
+					// Success - the bitmap was filled with pixel data
+					_tcs.TrySetResult(_bitmap);
+				}
+				else
+				{
+					System.Diagnostics.Debug.WriteLine($"PixelCopy failed with result: {copyResult}");
+					_tcs.TrySetResult(null);
+				}
 			}
 		}
 	}
