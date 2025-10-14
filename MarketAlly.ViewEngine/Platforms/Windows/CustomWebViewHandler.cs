@@ -359,23 +359,49 @@ namespace MarketAlly.Maui.ViewEngine
 			}
 		}
 
-		public void SetUserAgent(string userAgent)
+	public void SetUserAgent(string userAgent)
+	{
+		try
 		{
-			try
+			if (PlatformView?.CoreWebView2?.Settings != null)
 			{
-				if (PlatformView?.CoreWebView2?.Settings != null)
+				// Get the WebView to access UserAgentMode
+				var webView = VirtualView as WebView;
+				var customUserAgent = userAgent;
+				var userAgentMode = webView?.UserAgentMode ?? UserAgentMode.Default;
+
+				if (!string.IsNullOrEmpty(customUserAgent))
 				{
-					PlatformView.CoreWebView2.Settings.UserAgent = userAgent ??
-						"Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36";
+					// Custom user agent provided - use it
+					PlatformView.CoreWebView2.Settings.UserAgent = customUserAgent;
 				}
 				else
 				{
+					// Determine user agent based on mode
+					// Default for Windows is Desktop
+					bool useDesktop = userAgentMode == UserAgentMode.Desktop ||
+					                  (userAgentMode == UserAgentMode.Default);
+
+					if (useDesktop)
+					{
+						// Desktop: Windows Chrome
+						PlatformView.CoreWebView2.Settings.UserAgent = "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36";
+					}
+					else
+					{
+						// Mobile: Android Chrome
+						PlatformView.CoreWebView2.Settings.UserAgent = "Mozilla/5.0 (Linux; Android 13) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.6099.144 Mobile Safari/537.36";
+					}
 				}
 			}
-			catch (Exception ex)
+			else
 			{
 			}
 		}
+		catch (Exception ex)
+		{
+		}
+	}
 
 		public async partial Task<PageData> ExtractPageDataAsync(bool forceRouteExtraction = false)
 		{

@@ -145,18 +145,34 @@ namespace MarketAlly.Maui.ViewEngine
 				webView.Configuration.Preferences.JavaScriptEnabled = true;
 				webView.Configuration.Preferences.JavaScriptCanOpenWindowsAutomatically = true;
 
-				// Set desktop Mac user agent to avoid mobile site redirects and bot detection
-				var customWebView = VirtualView as WebView;
-				var customUserAgent = customWebView?.UserAgent;
-				if (!string.IsNullOrEmpty(customUserAgent))
+			// Set user agent based on UserAgentMode property
+			var customWebView = VirtualView as WebView;
+			var customUserAgent = customWebView?.UserAgent;
+			var userAgentMode = customWebView?.UserAgentMode ?? UserAgentMode.Default;
+
+			if (!string.IsNullOrEmpty(customUserAgent))
+			{
+				// Custom user agent provided - use it
+				webView.CustomUserAgent = customUserAgent;
+			}
+			else
+			{
+				// Determine user agent based on mode
+				// Default for iOS is Mobile
+				bool useMobile = userAgentMode == UserAgentMode.Mobile ||
+				                 (userAgentMode == UserAgentMode.Default);
+
+				if (useMobile)
 				{
-					webView.CustomUserAgent = customUserAgent;
+					// Mobile: iOS Safari
+					webView.CustomUserAgent = "Mozilla/5.0 (iPhone; CPU iPhone OS 17_0 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/17.0 Mobile/15E148 Safari/604.1";
 				}
 				else
 				{
-					// Default to desktop Mac Chrome to avoid blocks from sites like Twitter/X
+					// Desktop: Mac Safari
 					webView.CustomUserAgent = "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36";
 				}
+			}
 
 				// Add script message handler for content changes
 				_scriptMessageHandler = new CustomScriptMessageHandler(this);

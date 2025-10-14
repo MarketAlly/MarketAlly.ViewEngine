@@ -265,7 +265,7 @@
                        Grid.Row="1"
                        Grid.Column="0"
                        PageDataChanged="webView_PageDataChanged"
-                       UserAgent="Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36" />
+                       UserAgentMode="Mobile" />
 
         <!-- Side Panel -->
         <Grid x:Name="sidePanel"

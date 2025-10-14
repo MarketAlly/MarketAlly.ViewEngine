@@ -31,7 +31,7 @@
 		{
 			try
 			{
-				var window = new Window(new AppShell());
+				var window = new Window(new MainPage());
 				return window;
 			}
 			catch (Exception ex)

@@ -185,18 +185,34 @@ namespace MarketAlly.Maui.ViewEngine
 				settings.JavaScriptEnabled = true;
 				settings.DomStorageEnabled = true;
 
-				// Set desktop Chrome user agent to avoid mobile site redirects and bot detection
-				var webView = VirtualView as WebView;
-				var customUserAgent = webView?.UserAgent;
-				if (!string.IsNullOrEmpty(customUserAgent))
+			// Set user agent based on UserAgentMode property
+			var webView = VirtualView as WebView;
+			var customUserAgent = webView?.UserAgent;
+			var userAgentMode = webView?.UserAgentMode ?? UserAgentMode.Default;
+
+			if (!string.IsNullOrEmpty(customUserAgent))
+			{
+				// Custom user agent provided - use it
+				settings.UserAgentString = customUserAgent;
+			}
+			else
+			{
+				// Determine user agent based on mode
+				// Default for Android is Mobile
+				bool useMobile = userAgentMode == UserAgentMode.Mobile ||
+				                 (userAgentMode == UserAgentMode.Default);
+
+				if (useMobile)
 				{
-					settings.UserAgentString = customUserAgent;
+					// Mobile: Modern Chrome on Android 13
+					settings.UserAgentString = "Mozilla/5.0 (Linux; Android 13) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.6099.144 Mobile Safari/537.36";
 				}
 				else
 				{
-					// Default to desktop Chrome to avoid blocks from sites like Twitter/X
+					// Desktop: Windows Chrome
 					settings.UserAgentString = "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36";
 				}
+			}
 
 				CookieManager.Instance.SetAcceptCookie(true);
 				CookieManager.Instance.SetAcceptThirdPartyCookies(platformView, true);

@@ -2,6 +2,27 @@ using Microsoft.Maui.Controls.Internals;
 
 namespace MarketAlly.Maui.ViewEngine
 {
+	/// <summary>
+	/// Specifies the user agent mode for the WebView
+	/// </summary>
+	public enum UserAgentMode
+	{
+		/// <summary>
+		/// Use platform-specific defaults: Mobile for iOS/Android, Desktop for Windows
+		/// </summary>
+		Default = 0,
+
+		/// <summary>
+		/// Use desktop user agent (Windows Chrome or Mac Safari)
+		/// </summary>
+		Desktop = 1,
+
+		/// <summary>
+		/// Use mobile user agent (Android Chrome or iOS Safari)
+		/// </summary>
+		Mobile = 2
+	}
+
 	[Preserve]
 	public class WebView : Microsoft.Maui.Controls.WebView
 	{
@@ -19,6 +40,9 @@ namespace MarketAlly.Maui.ViewEngine
 		public static readonly BindableProperty UserAgentProperty =
 			BindableProperty.Create(nameof(UserAgent), typeof(string), typeof(WebView), default(string));
 
+
+	public static readonly BindableProperty UserAgentModeProperty =
+		BindableProperty.Create(nameof(UserAgentMode), typeof(UserAgentMode), typeof(WebView), UserAgentMode.Default);
 		public static readonly BindableProperty MaxRoutesProperty =
 			BindableProperty.Create(nameof(MaxRoutes), typeof(int), typeof(WebView), 100);
 
@@ -222,6 +246,18 @@ namespace MarketAlly.Maui.ViewEngine
 			get => (string)GetValue(UserAgentProperty);
 			set => SetValue(UserAgentProperty, value);
 		}
+
+	/// <summary>
+	/// Specifies the user agent mode for the WebView.
+	/// Default: Platform-specific (Mobile for iOS/Android, Desktop for Windows)
+	/// Desktop: Uses desktop browser user agent
+	/// Mobile: Uses mobile browser user agent
+	/// </summary>
+	public UserAgentMode UserAgentMode
+	{
+		get => (UserAgentMode)GetValue(UserAgentModeProperty);
+		set => SetValue(UserAgentModeProperty, value);
+	}
 
 		/// <summary>
 		/// Maximum number of routes to return in Routes and BodyRoutes collections.
