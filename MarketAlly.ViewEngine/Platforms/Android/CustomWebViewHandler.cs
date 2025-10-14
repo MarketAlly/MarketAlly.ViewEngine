@@ -585,7 +585,7 @@ namespace MarketAlly.Maui.ViewEngine
 
 		/// <summary>
 		/// Modern way to capture WebView content using PixelCopy API (Android 8.0+)
-		/// This is the correct, non-deprecated method that properly captures visible viewport
+		/// This is the correct, non-deprecated method that captures ONLY the WebView content, not overlays
 		/// </summary>
 		private async Task<Android.Graphics.Bitmap> CaptureWithPixelCopyAsync(int width, int height)
 		{
@@ -596,26 +596,14 @@ namespace MarketAlly.Maui.ViewEngine
 				// Create bitmap to receive the pixel data
 				var bitmap = Android.Graphics.Bitmap.CreateBitmap(width, height, Android.Graphics.Bitmap.Config.Argb8888);
 
-				// Get the location of the WebView on screen
-				int[] location = new int[2];
-				PlatformView.GetLocationInWindow(location);
-
-				// Define the source rectangle (the visible viewport)
-				var srcRect = new Android.Graphics.Rect(
-					location[0],
-					location[1],
-					location[0] + width,
-					location[1] + height
-				);
-
-				// Use PixelCopy to capture the view content
-				Android.Views.PixelCopy.Request(
-					Platform.CurrentActivity.Window,
-					srcRect,
-					bitmap,
-					new PixelCopyListener(bitmap, tcs),
-					new Android.OS.Handler(Android.OS.Looper.MainLooper)
-				);
+			// Use PixelCopy to capture directly from the WebView surface
+			// This captures ONLY the WebView content, not overlays or other views on top
+			Android.Views.PixelCopy.Request(
+				PlatformView,
+				bitmap,
+				new PixelCopyListener(bitmap, tcs),
+				new Android.OS.Handler(Android.OS.Looper.MainLooper)
+			);
 
 				// Wait for the pixel copy to complete
 				var result = await tcs.Task;
