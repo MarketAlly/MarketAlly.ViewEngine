@@ -1,3 +1,4 @@
+using Microsoft.Maui.Controls.Internals;
 using Microsoft.UI.Xaml.Controls;
 using Microsoft.Web.WebView2.Core;
 using System.Diagnostics;

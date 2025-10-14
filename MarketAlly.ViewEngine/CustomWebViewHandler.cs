@@ -1,19 +1,35 @@
 ﻿using iText.Kernel.Pdf;
 using iText.Kernel.Pdf.Canvas.Parser;
 using iText.Kernel.Pdf.Canvas.Parser.Listener;
+using Microsoft.Maui.Controls;
 using Microsoft.Maui.Handlers;
 using System;
 using System.Collections.Generic;
+using System.Diagnostics.CodeAnalysis;
 using System.Linq;
 using System.Text;
 using System.Text.Json;
 using System.Threading.Tasks;
+using Microsoft.Maui.Controls.Internals;
 
 namespace MarketAlly.Maui.ViewEngine
 {
+	[Preserve(AllMembers = true)]
 	public partial class WebViewHandler : Microsoft.Maui.Handlers.WebViewHandler
 	{
 		private PageRawData _cachedRawData;
+
+		public static new IPropertyMapper<WebView, WebViewHandler> Mapper { get; set; }
+
+		static WebViewHandler()
+		{
+			// Initialize mapper in static constructor to ensure it's ready before any instances are created
+			Mapper = new PropertyMapper<WebView, WebViewHandler>(Microsoft.Maui.Handlers.WebViewHandler.Mapper)
+			{
+				[nameof(WebView.UserAgent)] = MapUserAgent,
+				[nameof(WebView.Source)] = MapSource
+			};
+		}
 
 		public WebViewHandler() : base(Mapper)
 		{
@@ -27,13 +43,6 @@ namespace MarketAlly.Maui.ViewEngine
 		var pageData = await GetPageDataAsync();
 		PageDataChanged?.Invoke(this, pageData);
 	}
-
-		public static new IPropertyMapper<WebView, WebViewHandler> Mapper =
-			new PropertyMapper<WebView, WebViewHandler>(Microsoft.Maui.Handlers.WebViewHandler.Mapper)
-			{
-				[nameof(WebView.UserAgent)] = MapUserAgent,
-				[nameof(WebView.Source)] = MapSource
-			};
 
 		public static void MapUserAgent(WebViewHandler handler, WebView view)
 		{

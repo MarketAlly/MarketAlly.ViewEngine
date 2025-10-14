@@ -1,0 +1,32 @@
+<Project>
+  <!--
+    This file is automatically included when consuming apps reference the MarketAlly.ViewEngine NuGet package.
+    It ensures proper linker configuration and SDK settings to prevent Release mode crashes.
+  -->
+
+  <!-- Android: Disable trimming for this assembly to prevent code stripping -->
+  <PropertyGroup Condition="'$(TargetFramework)' == 'net9.0-android' OR '$(TargetFramework)' == 'net8.0-android' OR '$(TargetFramework)' == 'net7.0-android'">
+    <!-- Don't trim MarketAlly.ViewEngine assembly -->
+    <TrimmerRootAssembly Include="MarketAlly.Maui.ViewEngine" />
+  </PropertyGroup>
+
+  <!-- Workaround for Vulkan shader failures on SDK 35 + Adreno GPUs in Release mode -->
+  <PropertyGroup Condition="'$(Configuration)'=='Release' AND ('$(TargetFramework)'=='net9.0-android' OR '$(TargetFramework)'=='net8.0-android')">
+    <!-- Drop to SDK 34 for Release builds to avoid Vulkan + SDK 35 issues -->
+    <UseLatestAndroidPlatformSdk>false</UseLatestAndroidPlatformSdk>
+    <TargetSdkVersion>34</TargetSdkVersion>
+    <AndroidEnableMultiDex>true</AndroidEnableMultiDex>
+
+    <!-- AGGRESSIVE: Disable ALL linking to prevent any trimming issues -->
+    <AndroidLinkMode>None</AndroidLinkMode>
+    <PublishTrimmed>false</PublishTrimmed>
+    <RunAOTCompilation>false</RunAOTCompilation>
+    <EnableLLVM>false</EnableLLVM>
+  </PropertyGroup>
+
+  <!-- Include ProGuard configuration for Android builds -->
+  <ItemGroup Condition="'$(TargetFramework)' == 'net9.0-android' OR '$(TargetFramework)' == 'net8.0-android' OR '$(TargetFramework)' == 'net7.0-android'">
+    <ProguardConfiguration Include="$(MSBuildThisFileDirectory)..\buildTransitive\proguard.cfg" Condition="Exists('$(MSBuildThisFileDirectory)..\buildTransitive\proguard.cfg')" />
+  </ItemGroup>
+
+</Project>

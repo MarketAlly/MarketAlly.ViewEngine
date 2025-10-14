@@ -145,6 +145,19 @@ namespace MarketAlly.Maui.ViewEngine
 				webView.Configuration.Preferences.JavaScriptEnabled = true;
 				webView.Configuration.Preferences.JavaScriptCanOpenWindowsAutomatically = true;
 
+				// Set desktop Mac user agent to avoid mobile site redirects and bot detection
+				var customWebView = VirtualView as WebView;
+				var customUserAgent = customWebView?.UserAgent;
+				if (!string.IsNullOrEmpty(customUserAgent))
+				{
+					webView.CustomUserAgent = customUserAgent;
+				}
+				else
+				{
+					// Default to desktop Mac Chrome to avoid blocks from sites like Twitter/X
+					webView.CustomUserAgent = "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36";
+				}
+
 				// Add script message handler for content changes
 				_scriptMessageHandler = new CustomScriptMessageHandler(this);
 				webView.Configuration.UserContentController.AddScriptMessageHandler(

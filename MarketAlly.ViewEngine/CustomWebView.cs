@@ -1,5 +1,8 @@
+using Microsoft.Maui.Controls.Internals;
+
 namespace MarketAlly.Maui.ViewEngine
 {
+	[Preserve]
 	public class WebView : Microsoft.Maui.Controls.WebView
 	{
 		// Expose PageDataChanged event at the WebView level

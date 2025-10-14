@@ -185,6 +185,19 @@ namespace MarketAlly.Maui.ViewEngine
 				settings.JavaScriptEnabled = true;
 				settings.DomStorageEnabled = true;
 
+				// Set desktop Chrome user agent to avoid mobile site redirects and bot detection
+				var webView = VirtualView as WebView;
+				var customUserAgent = webView?.UserAgent;
+				if (!string.IsNullOrEmpty(customUserAgent))
+				{
+					settings.UserAgentString = customUserAgent;
+				}
+				else
+				{
+					// Default to desktop Chrome to avoid blocks from sites like Twitter/X
+					settings.UserAgentString = "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36";
+				}
+
 				CookieManager.Instance.SetAcceptCookie(true);
 				CookieManager.Instance.SetAcceptThirdPartyCookies(platformView, true);
 
@@ -254,15 +267,26 @@ namespace MarketAlly.Maui.ViewEngine
 				_handler = handler;
 			}
 
-			public override async void OnPageFinished(Android.Webkit.WebView view, string url)
+			public override void OnPageFinished(Android.Webkit.WebView view, string url)
 			{
 				base.OnPageFinished(view, url);
 
-				// Re-inject monitoring script after each page load
-				_handler.InjectContentMonitoringScript();
+				// Must not be async void - unhandled exceptions crash the app in Release mode
+				MainThread.BeginInvokeOnMainThread(async () =>
+				{
+					try
+					{
+						// Re-inject monitoring script after each page load
+						_handler.InjectContentMonitoringScript();
 
-				// Trigger page data extraction
-				await _handler.OnPageDataChangedAsync();
+						// Trigger page data extraction
+						await _handler.OnPageDataChangedAsync();
+					}
+					catch (Exception ex)
+					{
+						System.Diagnostics.Debug.WriteLine($"Error in OnPageFinished: {ex.Message}");
+					}
+				});
 			}
 
 			public override void DoUpdateVisitedHistory(Android.Webkit.WebView view, string url, bool isReload)
@@ -272,9 +296,16 @@ namespace MarketAlly.Maui.ViewEngine
 				// Trigger page data extraction
 				MainThread.BeginInvokeOnMainThread(async () =>
 				{
+					try
+					{
 					// Re-inject monitoring script after each page load
 					_handler.InjectContentMonitoringScript();
 					await _handler.OnPageDataChangedAsync();
+				}
+					catch (Exception ex)
+					{
+					System.Diagnostics.Debug.WriteLine($"Error in DoUpdateVisitedHistory: {ex.Message}");
+					}
 				});
 			}
 
@@ -287,7 +318,14 @@ namespace MarketAlly.Maui.ViewEngine
 					// Process PDF in parallel
 					MainThread.BeginInvokeOnMainThread(async () =>
 					{
+					try
+					{
 						await _handler.HandlePotentialPdfUrl(url);
+					}
+					catch (Exception ex)
+					{
+						System.Diagnostics.Debug.WriteLine($"Error in ShouldOverrideUrlLoading: {ex.Message}");
+					}
 					});
 				}
 
@@ -305,9 +343,21 @@ namespace MarketAlly.Maui.ViewEngine
 			}
 
 			[Android.Webkit.JavascriptInterface]
-			public async void OnContentChanged()
+			public void OnContentChanged()
 			{
-				await _handler.OnPageDataChangedAsync();
+				// Must not be async void - unhandled exceptions in async void crash the app in Release mode
+				MainThread.BeginInvokeOnMainThread(async () =>
+				{
+					try
+					{
+						await _handler.OnPageDataChangedAsync();
+					}
+					catch (Exception ex)
+					{
+						System.Diagnostics.Debug.WriteLine($"Error in OnContentChanged: {ex.Message}");
+						System.Diagnostics.Debug.WriteLine($"Stack trace: {ex.StackTrace}");
+					}
+				});
 			}
 		}
 
@@ -660,19 +710,30 @@ namespace MarketAlly.Maui.ViewEngine
 			_handler = handler;
 		}
 
-		public async void OnDownloadStart(string url, string userAgent, string contentDisposition, string mimetype, long contentLength)
+		public void OnDownloadStart(string url, string userAgent, string contentDisposition, string mimetype, long contentLength)
 		{
-			if (_handler.IsPotentialPdfUrl(url) ||
-			mimetype?.Contains("pdf", StringComparison.OrdinalIgnoreCase) == true)
+			// Must not be async void - unhandled exceptions crash the app in Release mode
+			MainThread.BeginInvokeOnMainThread(async () =>
 			{
-				await _handler.HandlePotentialPdfUrl(url);
-			}
-			else
-			{
-				var intent = new Intent(Intent.ActionView, Android.Net.Uri.Parse(url));
-				intent.AddFlags(ActivityFlags.NewTask);
-				Platform.CurrentActivity.StartActivity(intent);
-			}
+				try
+				{
+					if (_handler.IsPotentialPdfUrl(url) ||
+						mimetype?.Contains("pdf", StringComparison.OrdinalIgnoreCase) == true)
+					{
+						await _handler.HandlePotentialPdfUrl(url);
+					}
+					else
+					{
+						var intent = new Intent(Intent.ActionView, Android.Net.Uri.Parse(url));
+						intent.AddFlags(ActivityFlags.NewTask);
+						Platform.CurrentActivity.StartActivity(intent);
+					}
+				}
+				catch (Exception ex)
+				{
+					System.Diagnostics.Debug.WriteLine($"Error in OnDownloadStart: {ex.Message}");
+				}
+			});
 		}
 	}
 }
