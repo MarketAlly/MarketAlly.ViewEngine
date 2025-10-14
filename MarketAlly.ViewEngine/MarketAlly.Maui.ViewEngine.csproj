@@ -30,7 +30,7 @@
   <PropertyGroup>
     <GeneratePackageOnBuild>true</GeneratePackageOnBuild>
     <PackageId>MarketAlly.ViewEngine</PackageId>
-    <Version>1.3.5</Version>
+    <Version>1.4.0</Version>
     <Authors>David H Friedel Jr</Authors>
     <Company>MarketAlly</Company>
     <Product>MarketAlly.Maui.ViewEngine</Product>

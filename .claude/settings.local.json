@@ -1,7 +1,8 @@
 {
   "permissions": {
     "allow": [
-      "Bash(cat:*)"
+      "Bash(cat:*)",
+      "WebFetch(domain:arxiv.org)"
     ],
     "deny": [],
     "ask": []

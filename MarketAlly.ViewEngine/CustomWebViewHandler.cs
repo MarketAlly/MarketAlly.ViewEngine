@@ -390,11 +390,106 @@ namespace MarketAlly.Maui.ViewEngine
                               .trim();
                 }
 
+                // Function to check if we can access an iframe's content (same-origin check)
+                function canAccessIframe(iframe) {
+                    try {
+                        // Try to access the contentDocument - will throw if cross-origin
+                        var doc = iframe.contentDocument || iframe.contentWindow.document;
+                        return doc != null;
+                    } catch (e) {
+                        return false;
+                    }
+                }
+
+                // Function to extract content from an iframe
+                function extractFromIframe(iframe) {
+                    try {
+                        if (!canAccessIframe(iframe)) {
+                            return { bodyText: '', links: [], bodyLinks: [] };
+                        }
+
+                        var iframeDoc = iframe.contentDocument || iframe.contentWindow.document;
+                        if (!iframeDoc) {
+                            return { bodyText: '', links: [], bodyLinks: [] };
+                        }
+
+                        // Extract body text from iframe
+                        var iframeBodyText = '';
+                        if (iframeDoc.body && (iframeDoc.body.innerText || iframeDoc.body.textContent)) {
+                            iframeBodyText = iframeDoc.body.innerText || iframeDoc.body.textContent || '';
+                        } else if (iframeDoc.documentElement) {
+                            iframeBodyText = iframeDoc.documentElement.innerText || iframeDoc.documentElement.textContent || '';
+                        }
+
+                        // Extract links from iframe
+                        var iframeLinks = [];
+                        var iframeBodyLinks = [];
+                        var iframeAllLinks = iframeDoc.querySelectorAll('a[href]');
+
+                        iframeAllLinks.forEach(function(link) {
+                            var linkData = extractLinkData(link);
+                            if (linkData && linkData.text) {
+                                iframeLinks.push(linkData);
+                            }
+                        });
+
+                        // Extract body-only links from iframe
+                        var bodyLinkElements = new Set();
+                        bodySelectors.forEach(function(selector) {
+                            try {
+                                iframeDoc.querySelectorAll(selector).forEach(function(link) {
+                                    bodyLinkElements.add(link);
+                                });
+                            } catch (e) {
+                                // Skip invalid selectors
+                            }
+                        });
+
+                        bodyLinkElements.forEach(function(link) {
+                            var linkData = extractLinkData(link);
+                            if (linkData && linkData.text) {
+                                iframeBodyLinks.push(linkData);
+                            }
+                        });
+
+                        // Fallback to body tag if no body links found
+                        if (iframeBodyLinks.length === 0 && iframeDoc.body) {
+                            iframeDoc.body.querySelectorAll('a[href]').forEach(function(link) {
+                                var linkData = extractLinkData(link);
+                                if (linkData && linkData.text) {
+                                    iframeBodyLinks.push(linkData);
+                                }
+                            });
+                        }
+
+                        return {
+                            bodyText: iframeBodyText,
+                            links: iframeLinks,
+                            bodyLinks: iframeBodyLinks
+                        };
+                    } catch (e) {
+                        // Cross-origin or other error - skip this iframe
+                        return { bodyText: '', links: [], bodyLinks: [] };
+                    }
+                }
+
                 // Extract all links from the page
                 let links = [];
                 let bodyLinks = [];
                 let currentUrl = new URL(window.location.href);
-                let allLinks = document.querySelectorAll('a[href]');
+
+                // Body selectors (needed for iframe extraction too)
+                let bodySelectors = [
+                    'main a[href]',
+                    'article a[href]',
+                    '[role=""main""] a[href]',
+                    '.content a[href]',
+                    '.main-content a[href]',
+                    '.post-content a[href]',
+                    '.entry-content a[href]',
+                    '#content a[href]',
+                    '#main a[href]'
+                ];
 
                 // Function to extract link data
                 function extractLinkData(link) {
@@ -444,6 +539,9 @@ namespace MarketAlly.Maui.ViewEngine
                     }
                 }
 
+                // Extract from main document
+                let allLinks = document.querySelectorAll('a[href]');
+
                 // Extract all links (skip links without text to reduce processing)
                 allLinks.forEach(function(link) {
                     let linkData = extractLinkData(link);
@@ -452,19 +550,7 @@ namespace MarketAlly.Maui.ViewEngine
                     }
                 });
 
-                // Extract body-only links (main content areas)
-                let bodySelectors = [
-                    'main a[href]',
-                    'article a[href]',
-                    '[role=""main""] a[href]',
-                    '.content a[href]',
-                    '.main-content a[href]',
-                    '.post-content a[href]',
-                    '.entry-content a[href]',
-                    '#content a[href]',
-                    '#main a[href]'
-                ];
-
+                // Extract body-only links from main document
                 let bodyLinkElements = new Set();
                 bodySelectors.forEach(function(selector) {
                     try {
@@ -494,9 +580,43 @@ namespace MarketAlly.Maui.ViewEngine
                     });
                 }
 
+                // Extract body text from main document with fallback for pages without proper body tag (like arXiv HTML)
+                let bodyText = '';
+                if (document.body && (document.body.innerText || document.body.textContent)) {
+                    bodyText = document.body.innerText || document.body.textContent || '';
+                } else if (document.documentElement) {
+                    // Fallback for pages without body tag or with empty body
+                    bodyText = document.documentElement.innerText || document.documentElement.textContent || '';
+                }
+
+                // Now extract from all iframes (same-origin only)
+                let iframes = document.querySelectorAll('iframe');
+                iframes.forEach(function(iframe) {
+                    try {
+                        var iframeData = extractFromIframe(iframe);
+
+                        // Merge iframe body text with main body text
+                        if (iframeData.bodyText) {
+                            bodyText += '\n\n--- IFRAME CONTENT ---\n' + iframeData.bodyText;
+                        }
+
+                        // Merge iframe links
+                        if (iframeData.links && iframeData.links.length > 0) {
+                            links = links.concat(iframeData.links);
+                        }
+
+                        // Merge iframe body links
+                        if (iframeData.bodyLinks && iframeData.bodyLinks.length > 0) {
+                            bodyLinks = bodyLinks.concat(iframeData.bodyLinks);
+                        }
+                    } catch (e) {
+                        // Skip this iframe - likely cross-origin
+                    }
+                });
+
                 let pageData = {
                     title: sanitizeString(document.title || ''),
-                    body: toBase64(document.body ? document.body.innerText || document.body.textContent || '' : ''),
+                    body: toBase64(bodyText),
                     url: window.location.href,
                     links: links,
                     bodyLinks: bodyLinks
