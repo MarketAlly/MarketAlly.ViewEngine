@@ -583,38 +583,34 @@ namespace MarketAlly.Maui.ViewEngine
 			}
 		}
 
-		/// <summary>
-		/// Modern way to capture WebView content using PixelCopy API (Android 8.0+)
-		/// This is the correct, non-deprecated method that captures ONLY the WebView content, not overlays
-		/// </summary>
-		private async Task<Android.Graphics.Bitmap> CaptureWithPixelCopyAsync(int width, int height)
+	/// <summary>
+	/// Capture WebView content by drawing to Canvas
+	/// This captures ONLY the WebView content, not overlays or other views on top
+	/// Works reliably on all Android versions
+	/// </summary>
+	private async Task<Android.Graphics.Bitmap> CaptureWithPixelCopyAsync(int width, int height)
+	{
+		try
 		{
-			var tcs = new TaskCompletionSource<Android.Graphics.Bitmap>();
+			// Create bitmap and canvas
+			var bitmap = Android.Graphics.Bitmap.CreateBitmap(width, height, Android.Graphics.Bitmap.Config.Argb8888);
+			var canvas = new Android.Graphics.Canvas(bitmap);
 
-			try
-			{
-				// Create bitmap to receive the pixel data
-				var bitmap = Android.Graphics.Bitmap.CreateBitmap(width, height, Android.Graphics.Bitmap.Config.Argb8888);
+			// Draw the WebView content directly to canvas
+			// This captures ONLY the WebView, not any overlays or other UI elements
+			PlatformView.Draw(canvas);
 
-			// Use PixelCopy to capture directly from the WebView surface
-			// This captures ONLY the WebView content, not overlays or other views on top
-			Android.Views.PixelCopy.Request(
-				PlatformView,
-				bitmap,
-				new PixelCopyListener(bitmap, tcs),
-				new Android.OS.Handler(Android.OS.Looper.MainLooper)
-			);
-
-				// Wait for the pixel copy to complete
-				var result = await tcs.Task;
-				return result;
-			}
-			catch (Exception ex)
-			{
-				System.Diagnostics.Debug.WriteLine($"Error in PixelCopy capture: {ex.Message}");
-				return null;
-			}
+			// Return on next frame to ensure drawing is complete
+			await Task.Delay(1);
+			return bitmap;
 		}
+		catch (Exception ex)
+		{
+			System.Diagnostics.Debug.WriteLine($"Error in canvas capture: {ex.Message}");
+			return null;
+		}
+	}
+
 
 		/// <summary>
 		/// Fallback method for Android versions below 8.0 using DrawingCache
@@ -660,34 +656,6 @@ namespace MarketAlly.Maui.ViewEngine
 			}
 		}
 
-		/// <summary>
-		/// Listener for PixelCopy operations
-		/// </summary>
-		private class PixelCopyListener : Java.Lang.Object, Android.Views.PixelCopy.IOnPixelCopyFinishedListener
-		{
-			private readonly Android.Graphics.Bitmap _bitmap;
-			private readonly TaskCompletionSource<Android.Graphics.Bitmap> _tcs;
-
-			public PixelCopyListener(Android.Graphics.Bitmap bitmap, TaskCompletionSource<Android.Graphics.Bitmap> tcs)
-			{
-				_bitmap = bitmap;
-				_tcs = tcs;
-			}
-
-			public void OnPixelCopyFinished(int copyResult)
-			{
-				if (copyResult == (int)Android.Views.PixelCopyResult.Success)
-				{
-					// Success - the bitmap was filled with pixel data
-					_tcs.TrySetResult(_bitmap);
-				}
-				else
-				{
-					System.Diagnostics.Debug.WriteLine($"PixelCopy failed with result: {copyResult}");
-					_tcs.TrySetResult(null);
-				}
-			}
-		}
 	}
 
 	class ValueCallback : Java.Lang.Object, IValueCallback
