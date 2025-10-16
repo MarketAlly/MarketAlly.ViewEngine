@@ -275,15 +275,15 @@ namespace MarketAlly.Maui.ViewEngine
 						if (isNavigableLink(href)) {
 							console.log('Intercepted link click:', href);
 
-							// Always prevent default and force navigate
+							// ONLY prevent default and force navigate
+							// This allows the click to bubble normally to the WebView
+							// which preserves back/forward history
 							e.preventDefault();
 							e.stopPropagation();
-							e.stopImmediatePropagation();
 
-							// Use setTimeout to ensure event handling completes
-							setTimeout(() => {
-								forceNavigate(href);
-							}, 10);
+							// Let the native WebView handle the navigation
+							// This preserves browser history properly
+							window.location.assign(href);
 
 							return false;
 						}
