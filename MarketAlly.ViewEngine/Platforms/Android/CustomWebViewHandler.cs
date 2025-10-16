@@ -34,6 +34,40 @@ namespace MarketAlly.Maui.ViewEngine
                 }, 1000);
             }
 
+            // Normalize URLs for proper comparison (strip hash fragments)
+            function normalizeUrl(url) {
+                try {
+                    const urlObj = new URL(url);
+                    // Return URL without hash
+                    return urlObj.origin + urlObj.pathname + urlObj.search;
+                } catch (e) {
+                    return url;
+                }
+            }
+
+            // Check if link is navigable
+            function isNavigableLink(href) {
+                if (!href || href.trim() === '') return false;
+
+                const trimmed = href.trim();
+
+                // Filter out non-navigable patterns
+                if (trimmed === '#' ||
+                    trimmed.startsWith('javascript:') ||
+                    trimmed.startsWith('about:') ||
+                    trimmed.startsWith('mailto:') ||
+                    trimmed.startsWith('tel:')) {
+                    return false;
+                }
+
+                // Compare normalized URLs (without hash)
+                const normalizedHref = normalizeUrl(href);
+                const normalizedCurrent = normalizeUrl(window.location.href);
+
+                // Check if this is actually a different page (not just a hash change on same page)
+                return normalizedHref !== normalizedCurrent;
+            }
+
             // Fix navigation for SPAs like Google News
             document.addEventListener('click', function(e) {
                 let target = e.target;
@@ -46,28 +80,36 @@ namespace MarketAlly.Maui.ViewEngine
 
                 if (target && target.tagName === 'A' && target.href) {
                     const href = target.href;
-                    const currentUrl = window.location.href;
 
                     // Check if it's a real navigation link
-                    if (href &&
-                        href !== currentUrl &&
-                        !href.startsWith('javascript:') &&
-                        href !== '#' &&
-                        !href.startsWith('about:')) {
-
+                    if (isNavigableLink(href)) {
                         // Check for SPAs that prevent navigation
                         const isGoogleNews = window.location.hostname.includes('news.google.com');
-                        const isExternalLink = new URL(href).hostname !== window.location.hostname;
+
+                        let isExternalLink = false;
+                        try {
+                            isExternalLink = new URL(href).hostname !== window.location.hostname;
+                        } catch (e) {
+                            // If URL parsing fails, assume it's not external
+                            isExternalLink = false;
+                        }
 
                         // Force navigation for known SPAs or external links
                         if (isGoogleNews || isExternalLink) {
                             console.log('WebView: Force navigating to:', href);
                             e.preventDefault();
                             e.stopPropagation();
+                            e.stopImmediatePropagation();
 
                             // Use location.assign for proper navigation history
                             setTimeout(() => {
-                                window.location.assign(href);
+                                try {
+                                    window.location.assign(href);
+                                } catch (err) {
+                                    console.error('Navigation failed:', err);
+                                    // Fallback
+                                    window.location.href = href;
+                                }
                             }, 50);
 
                             return false;
@@ -132,37 +174,120 @@ namespace MarketAlly.Maui.ViewEngine
 				if (window.__forceLinkNavInjected) return;
 				window.__forceLinkNavInjected = true;
 
+				// Track pending navigations to prevent duplicates
+				let pendingNavigation = null;
+				const NAVIGATION_TIMEOUT = 5000; // 5 second timeout
+
+				// Normalize URLs for proper comparison (strip hash fragments)
+				function normalizeUrl(url) {
+					try {
+						const urlObj = new URL(url);
+						// Return URL without hash
+						return urlObj.origin + urlObj.pathname + urlObj.search;
+					} catch (e) {
+						return url;
+					}
+				}
+
+				// Check if link is navigable
+				function isNavigableLink(href) {
+					if (!href || href.trim() === '') return false;
+
+					const trimmed = href.trim();
+
+					// Filter out non-navigable patterns
+					if (trimmed === '#' ||
+						trimmed.startsWith('javascript:') ||
+						trimmed.startsWith('about:') ||
+						trimmed.startsWith('mailto:') ||
+						trimmed.startsWith('tel:')) {
+						return false;
+					}
+
+					// Compare normalized URLs (without hash)
+					const normalizedHref = normalizeUrl(href);
+					const normalizedCurrent = normalizeUrl(window.location.href);
+
+					// Check if this is actually a different page (not just a hash change on same page)
+					return normalizedHref !== normalizedCurrent;
+				}
+
+				// Force navigation with timeout and retry logic
+				function forceNavigate(href) {
+					// Cancel any pending navigation
+					if (pendingNavigation) {
+						clearTimeout(pendingNavigation);
+						pendingNavigation = null;
+					}
+
+					console.log('Force navigating to:', href);
+
+					// Set a timeout to detect if navigation failed
+					pendingNavigation = setTimeout(() => {
+						console.warn('Navigation timeout - attempting fallback navigation to:', href);
+						// Fallback: try window.open as last resort
+						try {
+							window.location.replace(href);
+						} catch (e) {
+							console.error('Navigation failed:', e);
+						}
+						pendingNavigation = null;
+					}, NAVIGATION_TIMEOUT);
+
+					// Primary navigation method
+					try {
+						window.location.href = href;
+					} catch (e) {
+						console.error('Primary navigation failed:', e);
+						// Immediate fallback
+						try {
+							window.location.assign(href);
+						} catch (e2) {
+							console.error('Fallback navigation failed:', e2);
+						}
+					}
+				}
+
+				// Clear pending navigation on successful page unload
+				window.addEventListener('beforeunload', function() {
+					if (pendingNavigation) {
+						clearTimeout(pendingNavigation);
+						pendingNavigation = null;
+					}
+				});
+
 				document.addEventListener('click', function(e) {
 					let target = e.target;
-					while (target && target !== document.body) {
+
+					// Walk up the DOM to find an anchor element (max 10 levels)
+					let levels = 0;
+					while (target && target !== document.body && levels < 10) {
 						if (target.tagName === 'A') break;
 						target = target.parentElement;
+						levels++;
 					}
 
 					if (target && target.tagName === 'A' && target.href) {
 						const href = target.href;
-						if (href &&
-							href !== window.location.href &&
-							!href.startsWith('javascript:') &&
-							href !== '#' &&
-							!href.startsWith('about:')) {
 
-							console.log('Force navigating to:', href);
+						// Check if it's a real navigation link
+						if (isNavigableLink(href)) {
+							console.log('Intercepted link click:', href);
+
+							// Always prevent default and force navigate
 							e.preventDefault();
 							e.stopPropagation();
+							e.stopImmediatePropagation();
 
-							// Try to use the native click first for better history support
-							// Create and dispatch a new click event without our handler
-							window.__forceLinkNavInjected = false;
+							// Use setTimeout to ensure event handling completes
 							setTimeout(() => {
-								// Use location.href for better history tracking
-								window.location.href = href;
-								window.__forceLinkNavInjected = true;
-							}, 50);
+								forceNavigate(href);
+							}, 10);
+
 							return false;
 						}
 					}
-				}, true);
+				}, true); // Use capture phase to intercept before other handlers
 			})();";
 
 			try

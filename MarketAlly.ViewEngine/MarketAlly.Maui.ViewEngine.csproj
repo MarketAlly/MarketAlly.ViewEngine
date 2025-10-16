@@ -30,7 +30,7 @@
   <PropertyGroup>
     <GeneratePackageOnBuild>true</GeneratePackageOnBuild>
     <PackageId>MarketAlly.ViewEngine</PackageId>
-    <Version>1.4.0</Version>
+    <Version>1.4.1</Version>
     <Authors>David H Friedel Jr</Authors>
     <Company>MarketAlly</Company>
     <Product>MarketAlly.Maui.ViewEngine</Product>
@@ -88,8 +88,8 @@
 
     <!-- Required dependencies -->
     <DependencyGroup>
-      <Dependency Id="Microsoft.Maui.Controls" Version="8.0.3" />
-      <Dependency Id="itext7" Version="8.0.2" />
+      <Dependency Id="Microsoft.Maui.Controls" Version="9.0.40" />
+      <Dependency Id="itext7" Version="9.1.0" />
     </DependencyGroup>
   </PropertyGroup>
 
