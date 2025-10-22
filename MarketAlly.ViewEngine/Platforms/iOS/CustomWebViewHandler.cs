@@ -2,6 +2,8 @@ using Foundation;
 using System.Text.Json;
 using UIKit;
 using WebKit;
+using PdfKit;
+using CoreGraphics;
 
 namespace MarketAlly.Maui.ViewEngine
 {
@@ -576,6 +578,65 @@ namespace MarketAlly.Maui.ViewEngine
 			catch (Exception ex)
 			{
 				System.Diagnostics.Debug.WriteLine($"Error capturing thumbnail (outer): {ex.Message}");
+				return null;
+			}
+		}
+
+		public partial async Task<Microsoft.Maui.Controls.ImageSource> RenderPdfThumbnailAsync(byte[] pdfData, int width, int height)
+		{
+			try
+			{
+				return await Task.Run(() =>
+				{
+					// Create NSData from byte array
+					using var data = NSData.FromArray(pdfData);
+
+					// Create PDF document from data
+					using var pdfDocument = new PdfDocument(data);
+
+					if (pdfDocument.PageCount == 0)
+						return null;
+
+					// Get first page
+					using var page = pdfDocument.GetPage(0);
+					if (page == null)
+						return null;
+
+					// Get page bounds
+					var pageRect = page.GetBoundsForBox(PdfDisplayBox.Media);
+
+					// Calculate aspect ratio
+					nfloat aspectRatio = pageRect.Width / pageRect.Height;
+					nfloat targetWidth = width;
+					nfloat targetHeight = height;
+
+					if (aspectRatio > (width / (nfloat)height))
+					{
+						targetHeight = width / aspectRatio;
+					}
+					else
+					{
+						targetWidth = height * aspectRatio;
+					}
+
+					// Create thumbnail using PDFKit's built-in thumbnail API
+					var thumbnailSize = new CGSize(targetWidth, targetHeight);
+					var image = page.GetThumbnail(thumbnailSize, PdfDisplayBox.Media);
+
+					if (image == null)
+						return null;
+
+					// Convert to PNG data
+					using var imageData = image.AsPNG();
+					var imageBytes = imageData.ToArray();
+
+					// Return as ImageSource
+					return Microsoft.Maui.Controls.ImageSource.FromStream(() => new System.IO.MemoryStream(imageBytes));
+				});
+			}
+			catch (Exception ex)
+			{
+				System.Diagnostics.Debug.WriteLine($"iOS: Error rendering PDF thumbnail: {ex.Message}");
 				return null;
 			}
 		}

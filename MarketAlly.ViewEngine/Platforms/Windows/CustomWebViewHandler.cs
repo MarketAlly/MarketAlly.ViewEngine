@@ -3,6 +3,10 @@ using Microsoft.UI.Xaml.Controls;
 using Microsoft.Web.WebView2.Core;
 using System.Diagnostics;
 using System.Text.Json;
+using Windows.Data.Pdf;
+using Windows.Storage.Streams;
+using Microsoft.UI.Xaml.Media.Imaging;
+using System.Runtime.InteropServices.WindowsRuntime;
 
 namespace MarketAlly.Maui.ViewEngine
 {
@@ -667,6 +671,70 @@ namespace MarketAlly.Maui.ViewEngine
 			catch (Exception ex)
 			{
 				System.Diagnostics.Debug.WriteLine($"Error capturing thumbnail: {ex.Message}");
+				return null;
+			}
+		}
+
+		public partial async Task<Microsoft.Maui.Controls.ImageSource> RenderPdfThumbnailAsync(byte[] pdfData, int width, int height)
+		{
+			try
+			{
+				// Create in-memory random access stream from PDF data
+				using var stream = new InMemoryRandomAccessStream();
+				using var writer = new DataWriter(stream);
+				writer.WriteBytes(pdfData);
+				await writer.StoreAsync();
+				await writer.FlushAsync();
+				stream.Seek(0);
+
+				// Load PDF document
+				var pdfDocument = await PdfDocument.LoadFromStreamAsync(stream);
+
+				if (pdfDocument.PageCount == 0)
+					return null;
+
+				// Get first page
+				using var page = pdfDocument.GetPage(0);
+
+				// Calculate dimensions maintaining aspect ratio
+				var pageSize = page.Size;
+				double aspectRatio = pageSize.Width / pageSize.Height;
+				double targetWidth = width;
+				double targetHeight = height;
+
+				if (aspectRatio > (width / (double)height))
+				{
+					targetHeight = width / aspectRatio;
+				}
+				else
+				{
+					targetWidth = height * aspectRatio;
+				}
+
+				// Create render target stream
+				using var renderStream = new InMemoryRandomAccessStream();
+
+				// Render page to stream
+				var renderOptions = new PdfPageRenderOptions
+				{
+					DestinationWidth = (uint)targetWidth,
+					DestinationHeight = (uint)targetHeight,
+					BackgroundColor = Windows.UI.Color.FromArgb(255, 255, 255, 255) // White background
+				};
+
+				await page.RenderToStreamAsync(renderStream, renderOptions);
+				renderStream.Seek(0);
+
+				// Convert stream to byte array
+				var bytes = new byte[renderStream.Size];
+				await renderStream.ReadAsync(bytes.AsBuffer(), (uint)renderStream.Size, InputStreamOptions.None);
+
+				// Return as ImageSource
+				return Microsoft.Maui.Controls.ImageSource.FromStream(() => new System.IO.MemoryStream(bytes));
+			}
+			catch (Exception ex)
+			{
+				System.Diagnostics.Debug.WriteLine($"Windows: Error rendering PDF thumbnail: {ex.Message}");
 				return null;
 			}
 		}

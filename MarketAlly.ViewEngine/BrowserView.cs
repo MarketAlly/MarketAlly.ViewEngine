@@ -921,9 +921,13 @@ namespace MarketAlly.Maui.ViewEngine
 					targetWidth = (int)(height * aspectRatio);
 				}
 
-				// Note: Actually rendering PDF to image requires platform-specific code
-				// For now, return null - this would need platform-specific implementation
-				// using the same approach as PdfViewHandler
+				// Use platform-specific PDF rendering
+				// Each platform (Android, iOS, Windows) has its own partial implementation
+				if (_webView.Handler is WebViewHandler handler)
+				{
+					return await handler.RenderPdfThumbnailAsync(_currentPdfData, width, height);
+				}
+
 				return null;
 			}
 			catch (Exception ex)

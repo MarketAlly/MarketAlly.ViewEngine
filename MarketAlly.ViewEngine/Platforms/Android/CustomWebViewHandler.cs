@@ -3,6 +3,9 @@ using Android.Webkit;
 using Microsoft.Maui.Handlers;
 using System.Text.Json;
 using static Android.Media.MediaRouter;
+using Android.Graphics.Pdf;
+using Android.Graphics;
+using Android.OS;
 
 namespace MarketAlly.Maui.ViewEngine
 {
@@ -400,6 +403,73 @@ namespace MarketAlly.Maui.ViewEngine
 			base.DisconnectHandler(platformView);
 		}
 
+		public partial async Task<Microsoft.Maui.Controls.ImageSource> RenderPdfThumbnailAsync(byte[] pdfData, int width, int height)
+		{
+			try
+			{
+				return await Task.Run(() =>
+				{
+					// Save PDF data to temp file for PdfRenderer
+					var tempFile = System.IO.Path.Combine(System.IO.Path.GetTempPath(), $"thumb_{Guid.NewGuid()}.pdf");
+					System.IO.File.WriteAllBytes(tempFile, pdfData);
+
+					try
+					{
+						using var fileDescriptor = ParcelFileDescriptor.Open(new Java.IO.File(tempFile), ParcelFileMode.ReadOnly);
+						using var pdfRenderer = new PdfRenderer(fileDescriptor);
+
+						if (pdfRenderer.PageCount == 0)
+							return null;
+
+						using var page = pdfRenderer.OpenPage(0); // First page
+
+						// Calculate dimensions maintaining aspect ratio
+						float aspectRatio = (float)page.Width / page.Height;
+						int targetWidth = width;
+						int targetHeight = height;
+
+						if (aspectRatio > (width / (float)height))
+						{
+							targetHeight = (int)(width / aspectRatio);
+						}
+						else
+						{
+							targetWidth = (int)(height * aspectRatio);
+						}
+
+						// Create bitmap
+						using var bitmap = Bitmap.CreateBitmap(targetWidth, targetHeight, Bitmap.Config.Argb8888);
+						bitmap.EraseColor(global::Android.Graphics.Color.White);
+
+						// Render page to bitmap
+						page.Render(bitmap, null, null, PdfRenderMode.ForDisplay);
+
+						// Convert bitmap to byte array
+						using var stream = new System.IO.MemoryStream();
+						bitmap.Compress(Bitmap.CompressFormat.Png, 100, stream);
+						var imageBytes = stream.ToArray();
+
+						// Return as ImageSource
+						return Microsoft.Maui.Controls.ImageSource.FromStream(() => new System.IO.MemoryStream(imageBytes));
+					}
+					finally
+					{
+						// Clean up temp file
+						try
+						{
+							System.IO.File.Delete(tempFile);
+						}
+						catch { }
+					}
+				});
+			}
+			catch (Exception ex)
+			{
+				System.Diagnostics.Debug.WriteLine($"Android: Error rendering PDF thumbnail: {ex.Message}");
+				return null;
+			}
+		}
+
 		public class WebViewClient : Android.Webkit.WebViewClient
 		{
 			private readonly WebViewHandler _handler;
@@ -529,7 +599,7 @@ namespace MarketAlly.Maui.ViewEngine
 
 				return ProcessHtmlResult(result, forceRouteExtraction);
 			}
-			catch (OperationCanceledException)
+			catch (System.OperationCanceledException)
 			{
 				return new PageData { Title = "Timeout", Body = "Page data extraction timed out." };
 			}
@@ -677,7 +747,7 @@ namespace MarketAlly.Maui.ViewEngine
 						var resizedBitmap = Android.Graphics.Bitmap.CreateScaledBitmap(bitmap, targetWidth, targetHeight, true);
 
 						// Save to temporary file
-						var tempPath = Path.Combine(Path.GetTempPath(), $"webview_thumbnail_{Guid.NewGuid()}.png");
+						var tempPath = System.IO.Path.Combine(System.IO.Path.GetTempPath(), $"webview_thumbnail_{Guid.NewGuid()}.png");
 						using (var stream = System.IO.File.Create(tempPath))
 						{
 							await resizedBitmap.CompressAsync(Android.Graphics.Bitmap.CompressFormat.Png, 90, stream);
@@ -856,52 +926,167 @@ namespace MarketAlly.Maui.ViewEngine
 
 		private async Task DownloadPdfWithCookies(string url, string cookies, BrowserView browserView)
 		{
-		try
-		{
-			browserView.IsLoading = true;
-
-			// Set progress and URL using reflection to access private fields
-			var currentPdfUrlField = browserView.GetType().GetField("_currentPdfUrl",
-				System.Reflection.BindingFlags.NonPublic | System.Reflection.BindingFlags.Instance);
-			currentPdfUrlField?.SetValue(browserView, url);
-
-			await MainThread.InvokeOnMainThreadAsync(() => browserView.DownloadProgress = 0.0);
-
-			// Check cache first using reflection
-			var pdfCacheField = browserView.GetType().GetField("_pdfCache",
-				System.Reflection.BindingFlags.NonPublic | System.Reflection.BindingFlags.Instance);
-			var pdfCache = pdfCacheField?.GetValue(browserView) as System.Collections.Generic.Dictionary<string, (byte[] data, string tempFilePath, string extractedText)>;
-
-			if (pdfCache != null && pdfCache.ContainsKey(url))
+			try
 			{
-				System.Diagnostics.Debug.WriteLine($"Android: Using cached PDF for {url}");
-				var cached = pdfCache[url];
+				browserView.IsLoading = true;
 
-				// Set cached data
-				var currentPdfDataField = browserView.GetType().GetField("_currentPdfData",
+				// Set progress and URL using reflection to access private fields
+				var currentPdfUrlField = browserView.GetType().GetField("_currentPdfUrl",
 					System.Reflection.BindingFlags.NonPublic | System.Reflection.BindingFlags.Instance);
-				currentPdfDataField?.SetValue(browserView, cached.data);
+				currentPdfUrlField?.SetValue(browserView, url);
 
+				await MainThread.InvokeOnMainThreadAsync(() => browserView.DownloadProgress = 0.0);
+
+				// Check cache first using reflection
+				var pdfCacheField = browserView.GetType().GetField("_pdfCache",
+					System.Reflection.BindingFlags.NonPublic | System.Reflection.BindingFlags.Instance);
+				var pdfCache = pdfCacheField?.GetValue(browserView) as System.Collections.Generic.Dictionary<string, (byte[] data, string tempFilePath, string extractedText)>;
+
+				if (pdfCache != null && pdfCache.ContainsKey(url))
+				{
+					System.Diagnostics.Debug.WriteLine($"Android: Using cached PDF for {url}");
+					var cached = pdfCache[url];
+
+					// Set cached data
+					var currentPdfDataField = browserView.GetType().GetField("_currentPdfData",
+						System.Reflection.BindingFlags.NonPublic | System.Reflection.BindingFlags.Instance);
+					currentPdfDataField?.SetValue(browserView, cached.data);
+
+					await MainThread.InvokeOnMainThreadAsync(() => browserView.DownloadProgress = 1.0);
+
+					// Show PDF from cache
+					await MainThread.InvokeOnMainThreadAsync(() =>
+					{
+						var pdfView = browserView.GetType().GetField("_pdfView",
+							System.Reflection.BindingFlags.NonPublic | System.Reflection.BindingFlags.Instance)
+							?.GetValue(browserView) as PdfView;
+						var webView = browserView.GetType().GetField("_webView",
+							System.Reflection.BindingFlags.NonPublic | System.Reflection.BindingFlags.Instance)
+							?.GetValue(browserView) as WebView;
+
+						if (pdfView != null && webView != null)
+						{
+							pdfView.Uri = cached.tempFilePath;
+							webView.IsVisible = false;
+							pdfView.IsVisible = true;
+						}
+
+						// Create PageData from cache
+						var pdfTitle = System.IO.Path.GetFileName(url);
+						if (string.IsNullOrWhiteSpace(pdfTitle))
+						{
+							var uri = new Uri(url);
+							pdfTitle = uri.Segments.Length > 0 ? uri.Segments[uri.Segments.Length - 1] : "PDF Document";
+						}
+
+						var pageData = new PageData
+						{
+							Title = pdfTitle,
+							Body = cached.extractedText,
+							Url = url,
+							MetaDescription = "PDF Document"
+						};
+
+						System.Diagnostics.Debug.WriteLine($"Android: Using cached PDF - Title={pdfTitle}, BodyLength={cached.extractedText.Length}");
+
+						// Check if navigating from history
+						var isNavigatingFromHistoryField = browserView.GetType().GetField("_isNavigatingFromHistory",
+							System.Reflection.BindingFlags.NonPublic | System.Reflection.BindingFlags.Instance);
+						var isNavigatingFromHistory = (bool)(isNavigatingFromHistoryField?.GetValue(browserView) ?? false);
+
+						if (!isNavigatingFromHistory)
+						{
+							browserView.AddToNavigationHistory(pageData);
+						}
+						else
+						{
+							System.Diagnostics.Debug.WriteLine("Android: Cached PDF NOT added to history - navigating from history");
+						}
+
+						// Fire PageDataChanged event
+						browserView.RaisePageDataChanged(pageData);
+
+						// Update PDF actions panel visibility
+						var updatePdfActionsPanelMethod = browserView.GetType().GetMethod("UpdatePdfActionsPanelVisibility",
+							System.Reflection.BindingFlags.NonPublic | System.Reflection.BindingFlags.Instance);
+						updatePdfActionsPanelMethod?.Invoke(browserView, null);
+					});
+
+					browserView.IsLoading = false;
+					return;
+				}
+
+				System.Diagnostics.Debug.WriteLine($"Android: PDF not in cache, downloading from {url}");
+
+				using var httpClient = new HttpClient(new HttpClientHandler
+				{
+					AllowAutoRedirect = true,
+					MaxAutomaticRedirections = 10
+				});
+
+				// Add cookies - THE KEY to bypassing arxiv bot check
+				if (!string.IsNullOrEmpty(cookies))
+				{
+					httpClient.DefaultRequestHeaders.Add("Cookie", cookies);
+				}
+
+				httpClient.DefaultRequestHeaders.Add("User-Agent", "Mozilla/5.0 (Linux; Android 10) AppleWebKit/537.36");
+				httpClient.DefaultRequestHeaders.Add("Accept", "application/pdf,application/octet-stream,*/*");
+
+				// Download WITH cookies and progress reporting
+				using var response = await httpClient.GetAsync(url, HttpCompletionOption.ResponseHeadersRead);
+				response.EnsureSuccessStatusCode();
+
+				var totalBytes = response.Content.Headers.ContentLength ?? -1;
+				var canReportProgress = totalBytes != -1;
+
+				using var contentStream = await response.Content.ReadAsStreamAsync();
+				using var memoryStream = new System.IO.MemoryStream();
+
+				var buffer = new byte[8192];
+				long totalRead = 0;
+				int bytesRead;
+
+				while ((bytesRead = await contentStream.ReadAsync(buffer, 0, buffer.Length)) > 0)
+				{
+					await memoryStream.WriteAsync(buffer, 0, bytesRead);
+					totalRead += bytesRead;
+
+					if (canReportProgress)
+					{
+						var progress = (double)totalRead / totalBytes;
+						await MainThread.InvokeOnMainThreadAsync(() => browserView.DownloadProgress = progress);
+					}
+				}
+
+				var pdfData = memoryStream.ToArray();
 				await MainThread.InvokeOnMainThreadAsync(() => browserView.DownloadProgress = 1.0);
 
-				// Show PDF from cache
-				await MainThread.InvokeOnMainThreadAsync(() =>
-				{
-					var pdfView = browserView.GetType().GetField("_pdfView",
-						System.Reflection.BindingFlags.NonPublic | System.Reflection.BindingFlags.Instance)
-						?.GetValue(browserView) as PdfView;
-					var webView = browserView.GetType().GetField("_webView",
-						System.Reflection.BindingFlags.NonPublic | System.Reflection.BindingFlags.Instance)
-						?.GetValue(browserView) as WebView;
+				System.Diagnostics.Debug.WriteLine($"Android: Downloaded {pdfData?.Length ?? 0} bytes WITH COOKIES");
 
-					if (pdfView != null && webView != null)
+				// Validate
+				if (pdfData != null && pdfData.Length >= 5 &&
+					pdfData[0] == 0x25 && pdfData[1] == 0x50 && pdfData[2] == 0x44 && pdfData[3] == 0x46)
+				{
+					// Store PDF data using reflection
+					var currentPdfDataField = browserView.GetType().GetField("_currentPdfData",
+						System.Reflection.BindingFlags.NonPublic | System.Reflection.BindingFlags.Instance);
+					currentPdfDataField?.SetValue(browserView, pdfData);
+
+					var tempFile = DataSources.PdfTempFileHelper.CreateTempPdfFilePath();
+					await System.IO.File.WriteAllBytesAsync(tempFile, pdfData);
+
+					// Extract text from PDF
+					string extractedText = string.Empty;
+					try
 					{
-						pdfView.Uri = cached.tempFilePath;
-						webView.IsVisible = false;
-						pdfView.IsVisible = true;
+						extractedText = await _handler.HandlePdfDownload(pdfData, url);
+					}
+					catch (Exception ex)
+					{
+						System.Diagnostics.Debug.WriteLine($"Android: Failed to extract PDF text: {ex.Message}");
 					}
 
-					// Create PageData from cache
 					var pdfTitle = System.IO.Path.GetFileName(url);
 					if (string.IsNullOrWhiteSpace(pdfTitle))
 					{
@@ -909,195 +1094,79 @@ namespace MarketAlly.Maui.ViewEngine
 						pdfTitle = uri.Segments.Length > 0 ? uri.Segments[uri.Segments.Length - 1] : "PDF Document";
 					}
 
-					var pageData = new PageData
+					await MainThread.InvokeOnMainThreadAsync(() =>
 					{
-						Title = pdfTitle,
-						Body = cached.extractedText,
-						Url = url,
-						MetaDescription = "PDF Document"
-					};
+						var pdfView = browserView.GetType().GetField("_pdfView",
+							System.Reflection.BindingFlags.NonPublic | System.Reflection.BindingFlags.Instance)
+							?.GetValue(browserView) as PdfView;
+						var webView = browserView.GetType().GetField("_webView",
+							System.Reflection.BindingFlags.NonPublic | System.Reflection.BindingFlags.Instance)
+							?.GetValue(browserView) as WebView;
 
-					System.Diagnostics.Debug.WriteLine($"Android: Using cached PDF - Title={pdfTitle}, BodyLength={cached.extractedText.Length}");
+						if (pdfView != null && webView != null)
+						{
+							pdfView.Uri = tempFile;
+							webView.IsVisible = false;
+							pdfView.IsVisible = true;
+						}
 
-					// Check if navigating from history
-					var isNavigatingFromHistoryField = browserView.GetType().GetField("_isNavigatingFromHistory",
-						System.Reflection.BindingFlags.NonPublic | System.Reflection.BindingFlags.Instance);
-					var isNavigatingFromHistory = (bool)(isNavigatingFromHistoryField?.GetValue(browserView) ?? false);
+						// Add to navigation history - critical for back button functionality
+						var pageData = new PageData
+						{
+							Title = pdfTitle,
+							Body = extractedText,
+							Url = url,
+							MetaDescription = "PDF Document"
+						};
 
-					if (!isNavigatingFromHistory)
-					{
-						browserView.AddToNavigationHistory(pageData);
-					}
-					else
-					{
-						System.Diagnostics.Debug.WriteLine("Android: Cached PDF NOT added to history - navigating from history");
-					}
+						System.Diagnostics.Debug.WriteLine($"Android: Adding PDF to history - URL={url}, Title={pdfTitle}");
 
-					// Fire PageDataChanged event
-					browserView.RaisePageDataChanged(pageData);
+						// Check if navigating from history
+						var isNavigatingFromHistoryField = browserView.GetType().GetField("_isNavigatingFromHistory",
+							System.Reflection.BindingFlags.NonPublic | System.Reflection.BindingFlags.Instance);
+						var isNavigatingFromHistory = (bool)(isNavigatingFromHistoryField?.GetValue(browserView) ?? false);
 
-					// Update PDF actions panel visibility
-					var updatePdfActionsPanelMethod = browserView.GetType().GetMethod("UpdatePdfActionsPanelVisibility",
-						System.Reflection.BindingFlags.NonPublic | System.Reflection.BindingFlags.Instance);
-					updatePdfActionsPanelMethod?.Invoke(browserView, null);
-				});
+						if (!isNavigatingFromHistory)
+						{
+							browserView.AddToNavigationHistory(pageData);
+						}
+						else
+						{
+							System.Diagnostics.Debug.WriteLine("Android: PDF NOT added to history - navigating from history");
+						}
+
+						// Fire PageDataChanged event
+						System.Diagnostics.Debug.WriteLine($"Android: Firing PageDataChanged - Title={pdfTitle}, BodyLength={extractedText.Length}");
+						browserView.RaisePageDataChanged(pageData);
+
+						// Update PDF actions panel visibility
+						var updatePdfActionsPanelMethod = browserView.GetType().GetMethod("UpdatePdfActionsPanelVisibility",
+							System.Reflection.BindingFlags.NonPublic | System.Reflection.BindingFlags.Instance);
+						updatePdfActionsPanelMethod?.Invoke(browserView, null);
+
+						// Cache the PDF for future navigation
+						if (pdfCache != null)
+						{
+							pdfCache[url] = (pdfData, tempFile, extractedText);
+							System.Diagnostics.Debug.WriteLine($"Android: Cached PDF - {url}");
+						}
+					});
+				}
 
 				browserView.IsLoading = false;
-				return;
 			}
-
-			System.Diagnostics.Debug.WriteLine($"Android: PDF not in cache, downloading from {url}");
-
-			using var httpClient = new HttpClient(new HttpClientHandler
+			catch (Exception ex)
 			{
-				AllowAutoRedirect = true,
-				MaxAutomaticRedirections = 10
-			});
-
-			// Add cookies - THE KEY to bypassing arxiv bot check
-			if (!string.IsNullOrEmpty(cookies))
-			{
-				httpClient.DefaultRequestHeaders.Add("Cookie", cookies);
-			}
-
-			httpClient.DefaultRequestHeaders.Add("User-Agent", "Mozilla/5.0 (Linux; Android 10) AppleWebKit/537.36");
-			httpClient.DefaultRequestHeaders.Add("Accept", "application/pdf,application/octet-stream,*/*");
-
-			// Download WITH cookies and progress reporting
-			using var response = await httpClient.GetAsync(url, HttpCompletionOption.ResponseHeadersRead);
-			response.EnsureSuccessStatusCode();
-
-			var totalBytes = response.Content.Headers.ContentLength ?? -1;
-			var canReportProgress = totalBytes != -1;
-
-			using var contentStream = await response.Content.ReadAsStreamAsync();
-			using var memoryStream = new System.IO.MemoryStream();
-
-			var buffer = new byte[8192];
-			long totalRead = 0;
-			int bytesRead;
-
-			while ((bytesRead = await contentStream.ReadAsync(buffer, 0, buffer.Length)) > 0)
-			{
-				await memoryStream.WriteAsync(buffer, 0, bytesRead);
-				totalRead += bytesRead;
-
-				if (canReportProgress)
-				{
-					var progress = (double)totalRead / totalBytes;
-					await MainThread.InvokeOnMainThreadAsync(() => browserView.DownloadProgress = progress);
-				}
-			}
-
-			var pdfData = memoryStream.ToArray();
-			await MainThread.InvokeOnMainThreadAsync(() => browserView.DownloadProgress = 1.0);
-
-			System.Diagnostics.Debug.WriteLine($"Android: Downloaded {pdfData?.Length ?? 0} bytes WITH COOKIES");
-
-			// Validate
-			if (pdfData != null && pdfData.Length >= 5 &&
-				pdfData[0] == 0x25 && pdfData[1] == 0x50 && pdfData[2] == 0x44 && pdfData[3] == 0x46)
-			{
-				// Store PDF data using reflection
-				var currentPdfDataField = browserView.GetType().GetField("_currentPdfData",
-					System.Reflection.BindingFlags.NonPublic | System.Reflection.BindingFlags.Instance);
-				currentPdfDataField?.SetValue(browserView, pdfData);
-
-				var tempFile = DataSources.PdfTempFileHelper.CreateTempPdfFilePath();
-				await System.IO.File.WriteAllBytesAsync(tempFile, pdfData);
-
-				// Extract text from PDF
-				string extractedText = string.Empty;
-				try
-				{
-					extractedText = await _handler.HandlePdfDownload(pdfData, url);
-				}
-				catch (Exception ex)
-				{
-					System.Diagnostics.Debug.WriteLine($"Android: Failed to extract PDF text: {ex.Message}");
-				}
-
-				var pdfTitle = System.IO.Path.GetFileName(url);
-				if (string.IsNullOrWhiteSpace(pdfTitle))
-				{
-					var uri = new Uri(url);
-					pdfTitle = uri.Segments.Length > 0 ? uri.Segments[uri.Segments.Length - 1] : "PDF Document";
-				}
-
+				System.Diagnostics.Debug.WriteLine($"DownloadPdfWithCookies failed: {ex.Message}");
+				browserView.IsLoading = false;
 				await MainThread.InvokeOnMainThreadAsync(() =>
 				{
-					var pdfView = browserView.GetType().GetField("_pdfView",
-						System.Reflection.BindingFlags.NonPublic | System.Reflection.BindingFlags.Instance)
-						?.GetValue(browserView) as PdfView;
-					var webView = browserView.GetType().GetField("_webView",
-						System.Reflection.BindingFlags.NonPublic | System.Reflection.BindingFlags.Instance)
-						?.GetValue(browserView) as WebView;
-
-					if (pdfView != null && webView != null)
-					{
-						pdfView.Uri = tempFile;
-						webView.IsVisible = false;
-						pdfView.IsVisible = true;
-					}
-
-					// Add to navigation history - critical for back button functionality
-					var pageData = new PageData
-					{
-						Title = pdfTitle,
-						Body = extractedText,
-						Url = url,
-						MetaDescription = "PDF Document"
-					};
-
-					System.Diagnostics.Debug.WriteLine($"Android: Adding PDF to history - URL={url}, Title={pdfTitle}");
-
-					// Check if navigating from history
-					var isNavigatingFromHistoryField = browserView.GetType().GetField("_isNavigatingFromHistory",
+					browserView.DownloadProgress = 0.0;
+					var currentPdfUrlField = browserView.GetType().GetField("_currentPdfUrl",
 						System.Reflection.BindingFlags.NonPublic | System.Reflection.BindingFlags.Instance);
-					var isNavigatingFromHistory = (bool)(isNavigatingFromHistoryField?.GetValue(browserView) ?? false);
-
-					if (!isNavigatingFromHistory)
-					{
-						browserView.AddToNavigationHistory(pageData);
-					}
-					else
-					{
-						System.Diagnostics.Debug.WriteLine("Android: PDF NOT added to history - navigating from history");
-					}
-
-					// Fire PageDataChanged event
-					System.Diagnostics.Debug.WriteLine($"Android: Firing PageDataChanged - Title={pdfTitle}, BodyLength={extractedText.Length}");
-					browserView.RaisePageDataChanged(pageData);
-
-					// Update PDF actions panel visibility
-					var updatePdfActionsPanelMethod = browserView.GetType().GetMethod("UpdatePdfActionsPanelVisibility",
-						System.Reflection.BindingFlags.NonPublic | System.Reflection.BindingFlags.Instance);
-					updatePdfActionsPanelMethod?.Invoke(browserView, null);
-
-					// Cache the PDF for future navigation
-					if (pdfCache != null)
-					{
-						pdfCache[url] = (pdfData, tempFile, extractedText);
-						System.Diagnostics.Debug.WriteLine($"Android: Cached PDF - {url}");
-					}
+					currentPdfUrlField?.SetValue(browserView, null);
 				});
 			}
-
-			browserView.IsLoading = false;
-		}
-		catch (Exception ex)
-		{
-			System.Diagnostics.Debug.WriteLine($"DownloadPdfWithCookies failed: {ex.Message}");
-			browserView.IsLoading = false;
-			await MainThread.InvokeOnMainThreadAsync(() =>
-			{
-				browserView.DownloadProgress = 0.0;
-				var currentPdfUrlField = browserView.GetType().GetField("_currentPdfUrl",
-					System.Reflection.BindingFlags.NonPublic | System.Reflection.BindingFlags.Instance);
-				currentPdfUrlField?.SetValue(browserView, null);
-			});
 		}
 	}
-}
-
 }

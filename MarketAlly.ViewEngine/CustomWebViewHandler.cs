@@ -896,4 +896,16 @@ namespace MarketAlly.Maui.ViewEngine
 			routes.AddRange(sortedRoutes);
 		}
 	}
+
+	public partial class WebViewHandler
+	{
+		/// <summary>
+		/// Renders a PDF thumbnail from PDF data. Platform-specific implementation.
+		/// </summary>
+		/// <param name="pdfData">The PDF byte array</param>
+		/// <param name="width">Target width</param>
+		/// <param name="height">Target height</param>
+		/// <returns>ImageSource containing the thumbnail, or null if rendering failed</returns>
+		public partial Task<Microsoft.Maui.Controls.ImageSource> RenderPdfThumbnailAsync(byte[] pdfData, int width, int height);
+	}
 }
