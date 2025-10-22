@@ -99,7 +99,29 @@ namespace MarketAlly.Maui.ViewEngine.Platforms.Android.Common
 
             var returnValue = _scaleDetector.OnTouchEvent(ev);
             returnValue = _gestureDetector.OnTouchEvent(ev) || returnValue;
-            return base.OnTouchEvent(ev) || returnValue;
+
+            // CRITICAL: Always let base RecyclerView handle the event first
+            // This ensures normal scrolling works even when not zoomed
+            var baseResult = base.OnTouchEvent(ev);
+
+            // Return true if either the base handled it OR our gesture detectors did
+            // This prevents parent views from stealing scroll gestures
+            return baseResult || returnValue;
+        }
+
+        public override bool OnInterceptTouchEvent(MotionEvent e)
+        {
+            // Allow the RecyclerView to intercept scroll events from children
+            // This is critical when embedded in complex layouts
+            var shouldIntercept = base.OnInterceptTouchEvent(e);
+
+            // If we're zoomed, always intercept to handle pan gestures
+            if (_scaleFactor > MinZoom && e.Action == MotionEventActions.Move)
+            {
+                return true;
+            }
+
+            return shouldIntercept;
         }
 
         protected override void DispatchDraw(Canvas canvas)
@@ -177,15 +199,19 @@ namespace MarketAlly.Maui.ViewEngine.Platforms.Android.Common
                 {
                     if (_zoomableRecycler._scaleFactor > MinZoom)
                     {
+                        // Handle panning when zoomed in
                         var newTranX = _zoomableRecycler._tranX - distanceX;
                         _zoomableRecycler._tranX = CoerceIn(newTranX, -_zoomableRecycler._maxTranX, 0f);
                         var newTranY = _zoomableRecycler._tranY - distanceY;
                         _zoomableRecycler._tranY = CoerceIn(newTranY, -_zoomableRecycler._maxTranY, 0f);
                         _zoomableRecycler.Invalidate();
+                        return true; // Consumed the pan gesture
                     }
                 }
 
-                return base.OnScroll(e1, e2, distanceX, distanceY);
+                // At zoom 1.0: Don't interfere, let RecyclerView handle normal scrolling
+                // Return false to allow RecyclerView's built-in scrolling to work
+                return false;
             }
         }
     }

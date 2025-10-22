@@ -17,6 +17,38 @@ namespace MarketAlly.Maui.ViewEngine
 	}
 
 	/// <summary>
+	/// Event args for navigation events (Navigating/Navigated)
+	/// </summary>
+	public class WebNavigationEventArgs : EventArgs
+	{
+		public string Url { get; set; }
+		public WebNavigationEvent NavigationEvent { get; set; }
+		public WebNavigationResult Result { get; set; }
+	}
+
+	/// <summary>
+	/// Navigation event type
+	/// </summary>
+	public enum WebNavigationEvent
+	{
+		NewPage,
+		Back,
+		Forward,
+		Refresh
+	}
+
+	/// <summary>
+	/// Navigation result
+	/// </summary>
+	public enum WebNavigationResult
+	{
+		Success,
+		Failure,
+		Timeout,
+		Cancel
+	}
+
+	/// <summary>
 	/// Hybrid control that seamlessly displays web pages and PDF files with custom navigation history
 	/// </summary>
 	[Preserve]
@@ -31,17 +63,19 @@ namespace MarketAlly.Maui.ViewEngine
 		private string _currentPdfUrl;
 		private int _currentHistoryIndex = -1;
 		private bool _isNavigatingFromHistory = false;
-		private bool _isShowingPdf = false;
 		private System.Threading.CancellationTokenSource _historyNavigationCts;
+		private System.Threading.CancellationTokenSource _pdfDownloadCts;
 	private readonly HashSet<string> _failedPdfUrls = new HashSet<string>();
 
 		// PDF cache: URL -> (PDF data, temp file path, extracted text)
 		private readonly Dictionary<string, (byte[] data, string tempFilePath, string extractedText)> _pdfCache = new Dictionary<string, (byte[], string, string)>();
 
-		// Expose PageDataChanged event
+		// Expose navigation events
 		public event EventHandler<PageData> PageDataChanged;
 		public event EventHandler<EventArgs> PageLoadComplete;
 		public event EventHandler<NavigationHistoryItem> NavigatingToHistoryItem;
+		public event EventHandler<WebNavigationEventArgs> Navigating;
+		public event EventHandler<WebNavigationEventArgs> Navigated;
 
 		#region Bindable Properties
 
@@ -343,13 +377,75 @@ namespace MarketAlly.Maui.ViewEngine
 
 			Content = _container;
 
+			// Ensure touch events are not blocked when nested in ContentViews
+			// This is critical for proper scrolling on Android
+			InputTransparent = false;
+			_container.InputTransparent = false;
+			_pdfView.InputTransparent = false;
+			_webView.InputTransparent = false;
+
 			// Wire up events
 			_webView.PageDataChanged += OnWebViewPageDataChanged;
 			_webView.PageLoadComplete += (s, e) => PageLoadComplete?.Invoke(this, e);
 			_webView.PropertyChanged += OnWebViewPropertyChanged;
+			_webView.Navigating += OnWebViewNavigating;
+			_webView.Navigated += OnWebViewNavigated;
 
 			// Sync properties from BrowserView to WebView
 			this.PropertyChanged += OnBrowserViewPropertyChanged;
+		}
+
+		private void OnWebViewNavigating(object sender, WebNavigatingEventArgs e)
+		{
+			// Forward WebView's Navigating event to BrowserView's Navigating event
+			var navigationEvent = e.NavigationEvent switch
+			{
+				Microsoft.Maui.WebNavigationEvent.NewPage => WebNavigationEvent.NewPage,
+				Microsoft.Maui.WebNavigationEvent.Back => WebNavigationEvent.Back,
+				Microsoft.Maui.WebNavigationEvent.Forward => WebNavigationEvent.Forward,
+				Microsoft.Maui.WebNavigationEvent.Refresh => WebNavigationEvent.Refresh,
+				_ => WebNavigationEvent.NewPage
+			};
+
+			var args = new WebNavigationEventArgs
+			{
+				Url = e.Url,
+				NavigationEvent = navigationEvent,
+				Result = WebNavigationResult.Success // Navigating event hasn't completed yet, so assume success
+			};
+
+			Navigating?.Invoke(this, args);
+		}
+
+		private void OnWebViewNavigated(object sender, WebNavigatedEventArgs e)
+		{
+			// Forward WebView's Navigated event to BrowserView's Navigated event
+			var navigationEvent = e.NavigationEvent switch
+			{
+				Microsoft.Maui.WebNavigationEvent.NewPage => WebNavigationEvent.NewPage,
+				Microsoft.Maui.WebNavigationEvent.Back => WebNavigationEvent.Back,
+				Microsoft.Maui.WebNavigationEvent.Forward => WebNavigationEvent.Forward,
+				Microsoft.Maui.WebNavigationEvent.Refresh => WebNavigationEvent.Refresh,
+				_ => WebNavigationEvent.NewPage
+			};
+
+			var navigationResult = e.Result switch
+			{
+				Microsoft.Maui.WebNavigationResult.Success => WebNavigationResult.Success,
+				Microsoft.Maui.WebNavigationResult.Failure => WebNavigationResult.Failure,
+				Microsoft.Maui.WebNavigationResult.Timeout => WebNavigationResult.Timeout,
+				Microsoft.Maui.WebNavigationResult.Cancel => WebNavigationResult.Cancel,
+				_ => WebNavigationResult.Failure
+			};
+
+			var args = new WebNavigationEventArgs
+			{
+				Url = e.Url,
+				NavigationEvent = navigationEvent,
+				Result = navigationResult
+			};
+
+			Navigated?.Invoke(this, args);
 		}
 
 		private static void OnSourceChanged(BindableObject bindable, object oldValue, object newValue)
@@ -505,6 +601,19 @@ namespace MarketAlly.Maui.ViewEngine
 
 	internal async Task ShowPdfAsync(string url)
 	{
+		// Fire Navigating event
+		Navigating?.Invoke(this, new WebNavigationEventArgs
+		{
+			Url = url,
+			NavigationEvent = WebNavigationEvent.NewPage,
+			Result = WebNavigationResult.Success
+		});
+
+		// Cancel any existing PDF download
+		_pdfDownloadCts?.Cancel();
+		_pdfDownloadCts = new System.Threading.CancellationTokenSource();
+		var cancellationToken = _pdfDownloadCts.Token;
+
 		try
 		{
 			IsLoading = true;
@@ -536,22 +645,22 @@ namespace MarketAlly.Maui.ViewEngine
 				httpClient.DefaultRequestHeaders.Add("Accept", "application/pdf,application/octet-stream,*/*");
 
 				// Get response to read content length
-				using var response = await httpClient.GetAsync(url, HttpCompletionOption.ResponseHeadersRead);
+				using var response = await httpClient.GetAsync(url, HttpCompletionOption.ResponseHeadersRead, cancellationToken);
 				response.EnsureSuccessStatusCode();
 
 				var totalBytes = response.Content.Headers.ContentLength ?? -1;
 				var canReportProgress = totalBytes != -1;
 
-				using var contentStream = await response.Content.ReadAsStreamAsync();
+				using var contentStream = await response.Content.ReadAsStreamAsync(cancellationToken);
 				using var memoryStream = new System.IO.MemoryStream();
 
 				var buffer = new byte[8192];
 				long totalRead = 0;
 				int bytesRead;
 
-				while ((bytesRead = await contentStream.ReadAsync(buffer, 0, buffer.Length)) > 0)
+				while ((bytesRead = await contentStream.ReadAsync(buffer, 0, buffer.Length, cancellationToken)) > 0)
 				{
-					await memoryStream.WriteAsync(buffer, 0, bytesRead);
+					await memoryStream.WriteAsync(buffer, 0, bytesRead, cancellationToken);
 					totalRead += bytesRead;
 
 					if (canReportProgress)
@@ -650,6 +759,31 @@ namespace MarketAlly.Maui.ViewEngine
 
 			// Fire event
 			PageDataChanged?.Invoke(this, pageData);
+
+			// Fire Navigated event (success)
+			Navigated?.Invoke(this, new WebNavigationEventArgs
+			{
+				Url = url,
+				NavigationEvent = WebNavigationEvent.NewPage,
+				Result = WebNavigationResult.Success
+			});
+		}
+		catch (OperationCanceledException)
+		{
+			// Download was cancelled by user
+			IsLoading = false;
+			DownloadProgress = 0.0;
+			_currentPdfUrl = null;
+			UpdatePdfActionsPanelVisibility();
+			System.Diagnostics.Debug.WriteLine($"PDF download cancelled: {url}");
+
+			// Fire Navigated event (cancelled)
+			Navigated?.Invoke(this, new WebNavigationEventArgs
+			{
+				Url = url,
+				NavigationEvent = WebNavigationEvent.NewPage,
+				Result = WebNavigationResult.Cancel
+			});
 		}
 		catch (Exception ex)
 		{
@@ -658,6 +792,14 @@ namespace MarketAlly.Maui.ViewEngine
 			_currentPdfUrl = null;
 			UpdatePdfActionsPanelVisibility();
 			System.Diagnostics.Debug.WriteLine($"Error loading PDF: {ex.Message}");
+
+			// Fire Navigated event (failure)
+			Navigated?.Invoke(this, new WebNavigationEventArgs
+			{
+				Url = url,
+				NavigationEvent = WebNavigationEvent.NewPage,
+				Result = WebNavigationResult.Failure
+			});
 		}
 	}
 		internal void AddToNavigationHistory(PageData pageData)
@@ -725,8 +867,27 @@ namespace MarketAlly.Maui.ViewEngine
 			}
 
 			System.Diagnostics.Debug.WriteLine($"Going back: CurrentIndex={CurrentHistoryIndex} -> {CurrentHistoryIndex - 1}");
+			var targetIndex = CurrentHistoryIndex - 1;
+			var targetUrl = NavigationHistory[targetIndex].Url;
+
+			// Fire Navigating event for Back navigation
+			Navigating?.Invoke(this, new WebNavigationEventArgs
+			{
+				Url = targetUrl,
+				NavigationEvent = WebNavigationEvent.Back,
+				Result = WebNavigationResult.Success
+			});
+
 			CurrentHistoryIndex--;
 			await NavigateToHistoryItemInternalAsync(CurrentHistoryIndex);
+
+			// Fire Navigated event for Back navigation
+			Navigated?.Invoke(this, new WebNavigationEventArgs
+			{
+				Url = targetUrl,
+				NavigationEvent = WebNavigationEvent.Back,
+				Result = WebNavigationResult.Success
+			});
 		}
 
 		/// <summary>
@@ -742,8 +903,27 @@ namespace MarketAlly.Maui.ViewEngine
 
 			System.Diagnostics.Debug.WriteLine($"Going forward: CurrentIndex={CurrentHistoryIndex} -> {CurrentHistoryIndex + 1}");
 			System.Diagnostics.Debug.WriteLine($"  Target: {NavigationHistory[CurrentHistoryIndex + 1].Title} ({NavigationHistory[CurrentHistoryIndex + 1].Url})");
+			var targetIndex = CurrentHistoryIndex + 1;
+			var targetUrl = NavigationHistory[targetIndex].Url;
+
+			// Fire Navigating event for Forward navigation
+			Navigating?.Invoke(this, new WebNavigationEventArgs
+			{
+				Url = targetUrl,
+				NavigationEvent = WebNavigationEvent.Forward,
+				Result = WebNavigationResult.Success
+			});
+
 			CurrentHistoryIndex++;
 			await NavigateToHistoryItemInternalAsync(CurrentHistoryIndex);
+
+			// Fire Navigated event for Forward navigation
+			Navigated?.Invoke(this, new WebNavigationEventArgs
+			{
+				Url = targetUrl,
+				NavigationEvent = WebNavigationEvent.Forward,
+				Result = WebNavigationResult.Success
+			});
 		}
 
 		/// <summary>
@@ -953,8 +1133,20 @@ namespace MarketAlly.Maui.ViewEngine
 		/// <param name="bypassCache">If true, forces re-download even if cached</param>
 		public async Task ReloadAsync(bool bypassCache = false)
 		{
+			string currentUrl = null;
+
 			if (_pdfView.IsVisible && !string.IsNullOrEmpty(_currentPdfUrl))
 			{
+				currentUrl = _currentPdfUrl;
+
+				// Fire Navigating event for Refresh
+				Navigating?.Invoke(this, new WebNavigationEventArgs
+				{
+					Url = currentUrl,
+					NavigationEvent = WebNavigationEvent.Refresh,
+					Result = WebNavigationResult.Success
+				});
+
 				// Reloading a PDF
 				if (bypassCache && _pdfCache.ContainsKey(_currentPdfUrl))
 				{
@@ -974,10 +1166,28 @@ namespace MarketAlly.Maui.ViewEngine
 					// iOS/Windows: use direct download
 					await ShowPdfAsync(_currentPdfUrl);
 				}
+
+				// Fire Navigated event for Refresh
+				Navigated?.Invoke(this, new WebNavigationEventArgs
+				{
+					Url = currentUrl,
+					NavigationEvent = WebNavigationEvent.Refresh,
+					Result = WebNavigationResult.Success
+				});
 			}
 			else if (_webView.Source is UrlWebViewSource urlSource && !string.IsNullOrEmpty(urlSource.Url))
 			{
-				// Reloading a web page
+				currentUrl = urlSource.Url;
+
+				// Fire Navigating event for Refresh
+				Navigating?.Invoke(this, new WebNavigationEventArgs
+				{
+					Url = currentUrl,
+					NavigationEvent = WebNavigationEvent.Refresh,
+					Result = WebNavigationResult.Success
+				});
+
+				// Reloading a web page - the WebView's Reload() will also trigger its own Navigating/Navigated events
 				if (bypassCache)
 				{
 					// Force WebView to reload from network
@@ -988,6 +1198,14 @@ namespace MarketAlly.Maui.ViewEngine
 					// Regular reload (may use browser cache)
 					_webView.Reload();
 				}
+
+				// Fire Navigated event for Refresh
+				Navigated?.Invoke(this, new WebNavigationEventArgs
+				{
+					Url = currentUrl,
+					NavigationEvent = WebNavigationEvent.Refresh,
+					Result = WebNavigationResult.Success
+				});
 			}
 		}
 
@@ -1033,6 +1251,18 @@ namespace MarketAlly.Maui.ViewEngine
 			catch (Exception ex)
 			{
 				System.Diagnostics.Debug.WriteLine($"Error downloading PDF: {ex.Message}");
+			}
+		}
+
+		/// <summary>
+		/// Cancel the current PDF download if one is in progress
+		/// </summary>
+		public void CancelPdfDownload()
+		{
+			if (_pdfDownloadCts != null && !_pdfDownloadCts.IsCancellationRequested)
+			{
+				System.Diagnostics.Debug.WriteLine("Cancelling PDF download");
+				_pdfDownloadCts.Cancel();
 			}
 		}
 

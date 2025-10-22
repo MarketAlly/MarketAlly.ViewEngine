@@ -1,0 +1,590 @@
+<?xml version="1.0" encoding="utf-8" ?>
+<ContentPage xmlns="http://schemas.microsoft.com/dotnet/2021/maui"
+             xmlns:x="http://schemas.microsoft.com/winfx/2009/xaml"
+             xmlns:vm="clr-namespace:Slyv.Maui.ViewModels"
+             xmlns:converters="clr-namespace:Slyv.Maui.Converters"
+             x:Class="Slyv.Maui.Views.SettingsPage"
+             x:DataType="vm:SettingsViewModel"
+             Title="Settings">
+
+    <ContentPage.Resources>
+        <converters:PercentToProgressConverter x:Key="PercentToProgressConverter"/>
+        <converters:InvertedBoolConverter x:Key="InvertedBoolConverter"/>
+        <converters:StringEqualityConverter x:Key="StringEqualityConverter"/>
+        <converters:NotNullConverter x:Key="NotNullConverter"/>
+    </ContentPage.Resources>
+
+    <ScrollView Padding="20">
+        <VerticalStackLayout Spacing="15">
+
+            <!-- LLM Provider Selection -->
+            <Frame Padding="0"
+                   BorderColor="{AppThemeBinding Light=#E0E0E0, Dark=#3A3A3C}"
+                   BackgroundColor="{AppThemeBinding Light=#FFFFFF, Dark=#1C1C1E}">
+                <VerticalStackLayout>
+                    <Label Text="LLM Provider (Text Generation)" FontAttributes="Bold" Margin="10,5,10,0" />
+                    <Picker ItemsSource="{Binding Providers}"
+                            SelectedItem="{Binding SelectedProvider}"
+                            Margin="10,0,10,10" />
+                </VerticalStackLayout>
+            </Frame>
+
+            <!-- Anthropic Settings -->
+            <Frame Padding="0"
+                   BorderColor="{AppThemeBinding Light=#E0E0E0, Dark=#3A3A3C}"
+                   BackgroundColor="{AppThemeBinding Light=#FFFFFF, Dark=#1C1C1E}"
+                   IsVisible="{Binding ShowAnthropicSettings}">
+                <VerticalStackLayout>
+                    <Label Text="Anthropic Configuration" FontAttributes="Bold" Margin="10,5,10,0" />
+
+                    <Label Text="API Key" Margin="10,5,10,0" />
+                    <Entry Text="{Binding AnthropicKey}"
+                           IsPassword="True"
+                           Placeholder="sk-ant-..."
+                           Margin="10,0,10,5" />
+
+                    <Label Text="Model" Margin="10,5,10,0" />
+                    <Picker ItemsSource="{Binding AnthropicModels}"
+                            SelectedItem="{Binding AnthropicModel, Mode=TwoWay}"
+                            Margin="10,0,10,10" />
+                </VerticalStackLayout>
+            </Frame>
+
+            <!-- Together.AI Settings -->
+            <Frame Padding="0"
+                   BorderColor="{AppThemeBinding Light=#E0E0E0, Dark=#3A3A3C}"
+                   BackgroundColor="{AppThemeBinding Light=#FFFFFF, Dark=#1C1C1E}"
+                   IsVisible="{Binding ShowTogetherAISettings}">
+                <VerticalStackLayout>
+                    <Label Text="Together.AI Configuration" FontAttributes="Bold" Margin="10,5,10,0" />
+
+                    <Label Text="API Key" Margin="10,5,10,0" />
+                    <Entry Text="{Binding TogetherAIKey}"
+                           IsPassword="True"
+                           Placeholder="Enter your Together.AI API key"
+                           Margin="10,0,10,5" />
+
+                    <Label Text="Model" Margin="10,5,10,0" />
+                    <Picker ItemsSource="{Binding TogetherAIModels}"
+                            SelectedItem="{Binding TogetherAIModel, Mode=TwoWay}"
+                            Margin="10,0,10,10" />
+
+                    <Label Text="Get your API key at: api.together.xyz"
+                           FontSize="10"
+                           TextColor="{AppThemeBinding Light=#007ACC, Dark=#4A9FD5}"
+                           Margin="10,0,10,10"/>
+                </VerticalStackLayout>
+            </Frame>
+
+            <!-- Local Model Settings - LLM (Text Generation) -->
+            <Frame Padding="0"
+                   BorderColor="{AppThemeBinding Light=#E0E0E0, Dark=#3A3A3C}"
+                   BackgroundColor="{AppThemeBinding Light=#FFFFFF, Dark=#1C1C1E}"
+                   IsVisible="{Binding SelectedProvider, Converter={StaticResource StringEqualityConverter}, ConverterParameter='Local (LlamaSharp.Ally)'}">
+                <VerticalStackLayout>
+                    <Label Text="LLM Model (Text Generation)" FontAttributes="Bold" Margin="10,5,10,0" />
+
+                    <Label Text="Select LLM Model" Margin="10,10,10,0" FontSize="12" />
+                    <Picker ItemsSource="{Binding AvailableLLMModels}"
+                            SelectedItem="{Binding SelectedLLMModel}"
+                            ItemDisplayBinding="{Binding ModelInfo.Name}"
+                            Margin="10,0,10,10" />
+
+                    <!-- Model Description -->
+                    <Label Text="{Binding SelectedLLMModel.ModelInfo.Description}"
+                           FontSize="12"
+                           TextColor="{AppThemeBinding Light=#666666, Dark=#999999}"
+                           Margin="10,0,10,5"
+                           IsVisible="{Binding SelectedLLMModel, Converter={StaticResource NotNullConverter}}"/>
+
+                    <!-- Model Status -->
+                    <Label Text="{Binding LlmModelStatusMessage}"
+                           FontSize="12"
+                           TextColor="{AppThemeBinding Light=#007ACC, Dark=#4A9FD5}"
+                           Margin="10,0,10,10"
+                           IsVisible="{Binding SelectedLLMModel, Converter={StaticResource NotNullConverter}}"/>
+
+                    <!-- Download Progress -->
+                    <ProgressBar Progress="{Binding LlmModelDownloadProgress, Converter={StaticResource PercentToProgressConverter}}"
+                                 IsVisible="{Binding IsLLMModelDownloading}"
+                                 ProgressColor="{AppThemeBinding Light=#007AFF, Dark=#0A84FF}"
+                                 Margin="10,0,10,10"/>
+
+                    <!-- Download Button -->
+                    <Button Text="Download LLM Model"
+                            Command="{Binding DownloadLLMModelCommand}"
+                            IsVisible="{Binding IsLLMModelDownloaded, Converter={StaticResource InvertedBoolConverter}}"
+                            BackgroundColor="{AppThemeBinding Light=#34C759, Dark=#30D158}"
+                            TextColor="White"
+                            Margin="10,0,10,5"/>
+
+                    <!-- Use Downloaded Model Button -->
+                    <Button Text="Use This LLM Model"
+                            Command="{Binding UseDownloadedLLMModelCommand}"
+                            IsVisible="{Binding IsLLMModelDownloaded}"
+                            BackgroundColor="{AppThemeBinding Light=#007AFF, Dark=#0A84FF}"
+                            TextColor="White"
+                            Margin="10,0,10,10"/>
+                </VerticalStackLayout>
+            </Frame>
+
+            <!-- OpenAI Settings -->
+            <Frame Padding="0"
+                   BorderColor="{AppThemeBinding Light=#E0E0E0, Dark=#3A3A3C}"
+                   BackgroundColor="{AppThemeBinding Light=#FFFFFF, Dark=#1C1C1E}"
+                   IsVisible="{Binding ShowOpenAISettings}">
+                <VerticalStackLayout>
+                    <Label Text="OpenAI Configuration" FontAttributes="Bold" Margin="10,5,10,0" />
+
+                    <Label Text="API Key" Margin="10,5,10,0" />
+                    <Entry Text="{Binding OpenAIKey}"
+                           IsPassword="True"
+                           Placeholder="sk-..."
+                           Margin="10,0,10,5" />
+
+                    <Label Text="Model (LLM)" Margin="10,5,10,0"
+                           IsVisible="{Binding SelectedProvider, Converter={StaticResource StringEqualityConverter}, ConverterParameter=OpenAI}"/>
+                    <Picker ItemsSource="{Binding OpenAIModels}"
+                            SelectedItem="{Binding OpenAIModel, Mode=TwoWay}"
+                            IsVisible="{Binding SelectedProvider, Converter={StaticResource StringEqualityConverter}, ConverterParameter=OpenAI}"
+                            Margin="10,0,10,10" />
+                </VerticalStackLayout>
+            </Frame>
+
+            <!-- Embedding Provider Selection -->
+            <Frame Padding="0"
+                   BorderColor="{AppThemeBinding Light=#E0E0E0, Dark=#3A3A3C}"
+                   BackgroundColor="{AppThemeBinding Light=#FFFFFF, Dark=#1C1C1E}">
+                <VerticalStackLayout>
+                    <Label Text="Embedding Provider (Vector Search)" FontAttributes="Bold" Margin="10,5,10,0" />
+                    <Picker ItemsSource="{Binding EmbeddingProviders}"
+                            SelectedItem="{Binding SelectedEmbeddingProvider}"
+                            Margin="10,0,10,10" />
+                </VerticalStackLayout>
+            </Frame>
+
+            <!-- Rebuild Embeddings Section -->
+            <Frame Padding="0"
+                   BorderColor="{AppThemeBinding Light=#E0E0E0, Dark=#3A3A3C}"
+                   BackgroundColor="{AppThemeBinding Light=#FFFFFF, Dark=#1C1C1E}">
+                <VerticalStackLayout>
+                    <Label Text="Vector Search Maintenance" FontAttributes="Bold" Margin="10,5,10,0" />
+
+                    <Label Text="After changing embedding providers, rebuild embeddings to ensure vector search works correctly."
+                           FontSize="12"
+                           TextColor="{AppThemeBinding Light=#666666, Dark=#999999}"
+                           Margin="10,5,10,5"
+                           LineBreakMode="WordWrap"/>
+
+                    <!-- Embedding Health Status -->
+                    <HorizontalStackLayout Spacing="5" Margin="10,5,10,5">
+                        <Label Text="Status:"
+                               FontSize="12"
+                               VerticalOptions="Center"/>
+                        <Label Text="{Binding EmbeddingHealthMessage}"
+                               FontSize="12"
+                               TextColor="{AppThemeBinding Light=#007ACC, Dark=#4A9FD5}"
+                               VerticalOptions="Center"/>
+                    </HorizontalStackLayout>
+
+                    <!-- Rebuild Buttons -->
+                    <Button Text="Rebuild All Embeddings"
+                            Command="{Binding RebuildEmbeddingsCommand}"
+                            BackgroundColor="{AppThemeBinding Light=#FF9500, Dark=#FF9F0A}"
+                            TextColor="White"
+                            Margin="10,0,10,5"
+                            IsEnabled="{Binding IsLoading, Converter={StaticResource InvertedBoolConverter}}"/>
+
+                    <Button Text="Rebuild Search Index (FTS5)"
+                            Command="{Binding RebuildFtsIndexCommand}"
+                            BackgroundColor="{AppThemeBinding Light=#8E8E93, Dark=#48484A}"
+                            TextColor="White"
+                            Margin="10,0,10,10"
+                            IsEnabled="{Binding IsLoading, Converter={StaticResource InvertedBoolConverter}}"
+                            ToolTipProperties.Text="Rebuilds the full-text search index. Use this if search results are incorrect."/>
+                </VerticalStackLayout>
+            </Frame>
+
+            <!-- Document Classification Section -->
+            <Frame Padding="0"
+                   BorderColor="{AppThemeBinding Light=#E0E0E0, Dark=#3A3A3C}"
+                   BackgroundColor="{AppThemeBinding Light=#FFFFFF, Dark=#1C1C1E}">
+                <VerticalStackLayout>
+                    <Label Text="Document Classification" FontAttributes="Bold" Margin="10,5,10,0" />
+
+                    <Label Text="Classify documents by extracting topics and generating summaries. This helps organize and search your documents more effectively."
+                           FontSize="12"
+                           TextColor="{AppThemeBinding Light=#666666, Dark=#999999}"
+                           Margin="10,5,10,5"
+                           LineBreakMode="WordWrap"/>
+
+                    <!-- Classification Status -->
+                    <HorizontalStackLayout Spacing="5" Margin="10,5,10,5">
+                        <Label Text="Status:"
+                               FontSize="12"
+                               VerticalOptions="Center"/>
+                        <Label Text="{Binding ClassificationStatusMessage}"
+                               FontSize="12"
+                               TextColor="{AppThemeBinding Light=#007ACC, Dark=#4A9FD5}"
+                               VerticalOptions="Center"/>
+                    </HorizontalStackLayout>
+
+                    <!-- Force Reclassify Toggle -->
+                    <Grid ColumnDefinitions="*,Auto" Margin="10,5,10,5">
+                        <Label Grid.Column="0"
+                               Text="Force Reclassify Already Classified Documents"
+                               VerticalOptions="Center"
+                               FontSize="12"/>
+                        <Switch Grid.Column="1"
+                                IsToggled="{Binding ForceReclassify}"
+                                VerticalOptions="Center"/>
+                    </Grid>
+
+                    <!-- Classify Button -->
+                    <Button Text="Classify All Documents"
+                            Command="{Binding ClassifyAllDocumentsCommand}"
+                            BackgroundColor="{AppThemeBinding Light=#5856D6, Dark=#5E5CE6}"
+                            TextColor="White"
+                            Margin="10,0,10,10"
+                            IsEnabled="{Binding IsLoading, Converter={StaticResource InvertedBoolConverter}}"/>
+                </VerticalStackLayout>
+            </Frame>
+
+            <!-- Local Model Settings - Embedding (Vector Search) -->
+            <Frame Padding="0"
+                   BorderColor="{AppThemeBinding Light=#E0E0E0, Dark=#3A3A3C}"
+                   BackgroundColor="{AppThemeBinding Light=#FFFFFF, Dark=#1C1C1E}"
+                   IsVisible="{Binding SelectedEmbeddingProvider, Converter={StaticResource StringEqualityConverter}, ConverterParameter='Local (ONNX)'}">
+                <VerticalStackLayout>
+                    <Label Text="Local Embedding Model (ONNX)" FontAttributes="Bold" Margin="10,5,10,0" />
+
+                    <Label Text="Select Embedding Model" Margin="10,10,10,0" FontSize="12" />
+                    <Picker ItemsSource="{Binding AvailableEmbeddingModels}"
+                            SelectedItem="{Binding SelectedEmbeddingModel}"
+                            ItemDisplayBinding="{Binding ModelInfo.Name}"
+                            Margin="10,0,10,10" />
+
+                    <!-- Model Description -->
+                    <Label Text="{Binding SelectedEmbeddingModel.ModelInfo.Description}"
+                           FontSize="12"
+                           TextColor="{AppThemeBinding Light=#666666, Dark=#999999}"
+                           Margin="10,0,10,5"
+                           IsVisible="{Binding SelectedEmbeddingModel, Converter={StaticResource NotNullConverter}}"/>
+
+                    <!-- Model Status -->
+                    <Label Text="{Binding EmbeddingModelStatusMessage}"
+                           FontSize="12"
+                           TextColor="{AppThemeBinding Light=#007ACC, Dark=#4A9FD5}"
+                           Margin="10,0,10,10"
+                           IsVisible="{Binding SelectedEmbeddingModel, Converter={StaticResource NotNullConverter}}"/>
+
+                    <!-- Download Progress -->
+                    <ProgressBar Progress="{Binding EmbeddingModelDownloadProgress, Converter={StaticResource PercentToProgressConverter}}"
+                                 IsVisible="{Binding IsEmbeddingModelDownloading}"
+                                 ProgressColor="{AppThemeBinding Light=#007AFF, Dark=#0A84FF}"
+                                 Margin="10,0,10,10"/>
+
+                    <!-- Download Button -->
+                    <Button Text="Download Embedding Model"
+                            Command="{Binding DownloadEmbeddingModelCommand}"
+                            IsVisible="{Binding IsEmbeddingModelDownloaded, Converter={StaticResource InvertedBoolConverter}}"
+                            BackgroundColor="{AppThemeBinding Light=#34C759, Dark=#30D158}"
+                            TextColor="White"
+                            Margin="10,0,10,5"/>
+
+                    <!-- Use Downloaded Model Button -->
+                    <Button Text="Use This Embedding Model"
+                            Command="{Binding UseDownloadedEmbeddingModelCommand}"
+                            IsVisible="{Binding IsEmbeddingModelDownloaded}"
+                            BackgroundColor="{AppThemeBinding Light=#007AFF, Dark=#0A84FF}"
+                            TextColor="White"
+                            Margin="10,0,10,10"/>
+                </VerticalStackLayout>
+            </Frame>
+
+            <!-- Utility Plugins Settings -->
+            <Frame Padding="0"
+                   BorderColor="{AppThemeBinding Light=#E0E0E0, Dark=#3A3A3C}"
+                   BackgroundColor="{AppThemeBinding Light=#FFFFFF, Dark=#1C1C1E}">
+                <VerticalStackLayout>
+                    <Label Text="AI Tool Plugins" FontAttributes="Bold" Margin="10,5,10,0" />
+
+                    <Label Text="Enable plugins that provide AI agents with additional capabilities like date/time, system information, URL validation, and web search."
+                           FontSize="12"
+                           TextColor="{AppThemeBinding Light=#666666, Dark=#999999}"
+                           Margin="10,5,10,10"
+                           LineBreakMode="WordWrap"/>
+
+                    <!-- Master Toggle -->
+                    <Grid ColumnDefinitions="*,Auto" Margin="10,5,10,5">
+                        <Label Grid.Column="0"
+                               Text="Enable Utility Plugins"
+                               VerticalOptions="Center"/>
+                        <Switch Grid.Column="1"
+                                IsToggled="{Binding EnableUtilityPlugins}"
+                                VerticalOptions="Center"/>
+                    </Grid>
+
+                    <!-- Individual Plugin Toggles -->
+                    <VerticalStackLayout IsVisible="{Binding EnableUtilityPlugins}" Margin="20,0,10,10">
+
+                        <!-- GetDateTime Plugin -->
+                        <Grid ColumnDefinitions="*,Auto" Margin="0,5">
+                            <VerticalStackLayout Grid.Column="0">
+                                <Label Text="Date/Time Plugin" FontSize="14" FontAttributes="Bold"/>
+                                <Label Text="Get current date and time"
+                                       FontSize="12"
+                                       TextColor="{AppThemeBinding Light=#666666, Dark=#999999}"/>
+                            </VerticalStackLayout>
+                            <Switch Grid.Column="1"
+                                    IsToggled="{Binding EnableGetDateTimePlugin}"
+                                    VerticalOptions="Center"/>
+                        </Grid>
+
+                        <!-- SystemInfo Plugin -->
+                        <Grid ColumnDefinitions="*,Auto" Margin="0,5">
+                            <VerticalStackLayout Grid.Column="0">
+                                <Label Text="System Info Plugin" FontSize="14" FontAttributes="Bold"/>
+                                <Label Text="Get OS and device information"
+                                       FontSize="12"
+                                       TextColor="{AppThemeBinding Light=#666666, Dark=#999999}"/>
+                            </VerticalStackLayout>
+                            <Switch Grid.Column="1"
+                                    IsToggled="{Binding EnableSystemInfoPlugin}"
+                                    VerticalOptions="Center"/>
+                        </Grid>
+
+                        <!-- UrlValidator Plugin -->
+                        <Grid ColumnDefinitions="*,Auto" Margin="0,5">
+                            <VerticalStackLayout Grid.Column="0">
+                                <Label Text="URL Validator Plugin" FontSize="14" FontAttributes="Bold"/>
+                                <Label Text="Validate and parse URLs"
+                                       FontSize="12"
+                                       TextColor="{AppThemeBinding Light=#666666, Dark=#999999}"/>
+                            </VerticalStackLayout>
+                            <Switch Grid.Column="1"
+                                    IsToggled="{Binding EnableUrlValidatorPlugin}"
+                                    VerticalOptions="Center"/>
+                        </Grid>
+
+                        <!-- WebSearch Plugin -->
+                        <Grid ColumnDefinitions="*,Auto" Margin="0,5">
+                            <VerticalStackLayout Grid.Column="0">
+                                <Label Text="Web Search Plugin" FontSize="14" FontAttributes="Bold"/>
+                                <Label Text="Search the web (requires API key)"
+                                       FontSize="12"
+                                       TextColor="{AppThemeBinding Light=#666666, Dark=#999999}"/>
+                            </VerticalStackLayout>
+                            <Switch Grid.Column="1"
+                                    IsToggled="{Binding EnableWebSearchPlugin}"
+                                    VerticalOptions="Center"/>
+                        </Grid>
+
+                        <!-- Brave API Key (shown when WebSearch is enabled) -->
+                        <VerticalStackLayout IsVisible="{Binding EnableWebSearchPlugin}" Margin="0,5,0,0">
+                            <Label Text="Brave Search API Key (optional)"
+                                   FontSize="12"
+                                   Margin="0,5,0,0"/>
+                            <Entry Text="{Binding BraveApiKey}"
+                                   IsPassword="True"
+                                   Placeholder="Enter Brave API key (or set BRAVE_API_KEY env var)"
+                                   FontSize="12"
+                                   Margin="0,0,0,5"/>
+                            <Label Text="Get a free API key at: https://brave.com/search/api/"
+                                   FontSize="10"
+                                   TextColor="{AppThemeBinding Light=#007ACC, Dark=#4A9FD5}"
+                                   Margin="0,0,0,5"/>
+                        </VerticalStackLayout>
+                    </VerticalStackLayout>
+                </VerticalStackLayout>
+            </Frame>
+
+            <!-- File Plugins Settings -->
+            <Frame Padding="0"
+                   BorderColor="{AppThemeBinding Light=#E0E0E0, Dark=#3A3A3C}"
+                   BackgroundColor="{AppThemeBinding Light=#FFFFFF, Dark=#1C1C1E}">
+                <VerticalStackLayout>
+                    <Label Text="File Operation Plugins" FontAttributes="Bold" Margin="10,5,10,0" />
+
+                    <Label Text="Enable plugins that allow AI agents to read and manipulate files. Use with caution - these plugins can modify your file system."
+                           FontSize="12"
+                           TextColor="{AppThemeBinding Light=#FF6B00, Dark=#FF8C00}"
+                           Margin="10,5,10,10"
+                           LineBreakMode="WordWrap"/>
+
+                    <!-- Master Toggle -->
+                    <Grid ColumnDefinitions="*,Auto" Margin="10,5,10,5">
+                        <Label Grid.Column="0"
+                               Text="Enable File Plugins"
+                               VerticalOptions="Center"
+                               FontAttributes="Bold"/>
+                        <Switch Grid.Column="1"
+                                IsToggled="{Binding EnableFilePlugins}"
+                                VerticalOptions="Center"/>
+                    </Grid>
+
+                    <!-- Individual Plugin Toggles -->
+                    <VerticalStackLayout IsVisible="{Binding EnableFilePlugins}" Margin="20,0,10,10">
+
+                        <!-- FileInfo Plugin -->
+                        <Grid ColumnDefinitions="*,Auto" Margin="0,5">
+                            <VerticalStackLayout Grid.Column="0">
+                                <Label Text="File Info Plugin" FontSize="14" FontAttributes="Bold"/>
+                                <Label Text="Get file metadata (size, dates, etc.)"
+                                       FontSize="12"
+                                       TextColor="{AppThemeBinding Light=#666666, Dark=#999999}"/>
+                            </VerticalStackLayout>
+                            <Switch Grid.Column="1"
+                                    IsToggled="{Binding EnableFileInfoPlugin}"
+                                    VerticalOptions="Center"/>
+                        </Grid>
+
+                        <!-- ReadFile Plugin -->
+                        <Grid ColumnDefinitions="*,Auto" Margin="0,5">
+                            <VerticalStackLayout Grid.Column="0">
+                                <Label Text="Read File Plugin" FontSize="14" FontAttributes="Bold"/>
+                                <Label Text="Read file contents with line numbers"
+                                       FontSize="12"
+                                       TextColor="{AppThemeBinding Light=#666666, Dark=#999999}"/>
+                            </VerticalStackLayout>
+                            <Switch Grid.Column="1"
+                                    IsToggled="{Binding EnableReadFilePlugin}"
+                                    VerticalOptions="Center"/>
+                        </Grid>
+
+                        <!-- SecureReadFile Plugin -->
+                        <Grid ColumnDefinitions="*,Auto" Margin="0,5">
+                            <VerticalStackLayout Grid.Column="0">
+                                <Label Text="Secure Read File Plugin" FontSize="14" FontAttributes="Bold"/>
+                                <Label Text="Read files with security validation (recommended)"
+                                       FontSize="12"
+                                       TextColor="{AppThemeBinding Light=#34C759, Dark=#30D158}"/>
+                            </VerticalStackLayout>
+                            <Switch Grid.Column="1"
+                                    IsToggled="{Binding EnableSecureReadFilePlugin}"
+                                    VerticalOptions="Center"/>
+                        </Grid>
+
+                        <!-- StringManipulator Plugin -->
+                        <Grid ColumnDefinitions="*,Auto" Margin="0,5">
+                            <VerticalStackLayout Grid.Column="0">
+                                <Label Text="String Manipulator Plugin" FontSize="14" FontAttributes="Bold"/>
+                                <Label Text="Text operations (reverse, uppercase, etc.)"
+                                       FontSize="12"
+                                       TextColor="{AppThemeBinding Light=#666666, Dark=#999999}"/>
+                            </VerticalStackLayout>
+                            <Switch Grid.Column="1"
+                                    IsToggled="{Binding EnableStringManipulatorPlugin}"
+                                    VerticalOptions="Center"/>
+                        </Grid>
+
+                        <!-- Divider for dangerous operations -->
+                        <BoxView HeightRequest="1"
+                                 BackgroundColor="{AppThemeBinding Light=#FF6B00, Dark=#FF8C00}"
+                                 Margin="0,10,0,5"/>
+                        <Label Text="⚠️ DANGEROUS: Write Operations"
+                               FontSize="12"
+                               FontAttributes="Bold"
+                               TextColor="{AppThemeBinding Light=#FF3B30, Dark=#FF453A}"
+                               Margin="0,0,0,5"/>
+
+                        <!-- FileOperations Plugin -->
+                        <Grid ColumnDefinitions="*,Auto" Margin="0,5">
+                            <VerticalStackLayout Grid.Column="0">
+                                <Label Text="File Operations Plugin" FontSize="14" FontAttributes="Bold"/>
+                                <Label Text="⚠️ Create, update, delete files"
+                                       FontSize="12"
+                                       TextColor="{AppThemeBinding Light=#FF3B30, Dark=#FF453A}"/>
+                            </VerticalStackLayout>
+                            <Switch Grid.Column="1"
+                                    IsToggled="{Binding EnableFileOperationsPlugin}"
+                                    VerticalOptions="Center"/>
+                        </Grid>
+
+                        <!-- SecureFileOperations Plugin -->
+                        <Grid ColumnDefinitions="*,Auto" Margin="0,5">
+                            <VerticalStackLayout Grid.Column="0">
+                                <Label Text="Secure File Operations Plugin" FontSize="14" FontAttributes="Bold"/>
+                                <Label Text="⚠️ Create, update, delete files with validation"
+                                       FontSize="12"
+                                       TextColor="{AppThemeBinding Light=#FF9500, Dark=#FF9F0A}"/>
+                            </VerticalStackLayout>
+                            <Switch Grid.Column="1"
+                                    IsToggled="{Binding EnableSecureFileOperationsPlugin}"
+                                    VerticalOptions="Center"/>
+                        </Grid>
+
+                        <!-- FileWorkflow Plugin -->
+                        <Grid ColumnDefinitions="*,Auto" Margin="0,5">
+                            <VerticalStackLayout Grid.Column="0">
+                                <Label Text="File Workflow Plugin" FontSize="14" FontAttributes="Bold"/>
+                                <Label Text="⚠️ Apply line-based changes to files"
+                                       FontSize="12"
+                                       TextColor="{AppThemeBinding Light=#FF9500, Dark=#FF9F0A}"/>
+                            </VerticalStackLayout>
+                            <Switch Grid.Column="1"
+                                    IsToggled="{Binding EnableFileWorkflowPlugin}"
+                                    VerticalOptions="Center"/>
+                        </Grid>
+
+                    </VerticalStackLayout>
+                </VerticalStackLayout>
+            </Frame>
+
+            <!-- Common Settings -->
+            <Frame Padding="0"
+                   BorderColor="{AppThemeBinding Light=#E0E0E0, Dark=#3A3A3C}"
+                   BackgroundColor="{AppThemeBinding Light=#FFFFFF, Dark=#1C1C1E}">
+                <VerticalStackLayout>
+                    <Label Text="Generation Settings" FontAttributes="Bold" Margin="10,5,10,0" />
+
+                    <Grid ColumnDefinitions="*,*" Margin="10,5,10,0">
+                        <Label Grid.Column="0" Text="Max Tokens" />
+                        <Label Grid.Column="1" Text="{Binding MaxTokens}" HorizontalOptions="End" />
+                    </Grid>
+                    <Slider Value="{Binding MaxTokens}"
+                            Minimum="256"
+                            Maximum="4096"
+                            Margin="10,0,10,10" />
+
+                    <Grid ColumnDefinitions="*,*" Margin="10,5,10,0">
+                        <Label Grid.Column="0" Text="Temperature" />
+                        <Label Grid.Column="1" Text="{Binding Temperature, StringFormat='{0:F2}'}" HorizontalOptions="End" />
+                    </Grid>
+                    <Slider Value="{Binding Temperature}"
+                            Minimum="0"
+                            Maximum="2"
+                            Margin="10,0,10,10" />
+                </VerticalStackLayout>
+            </Frame>
+
+            <!-- Status Message -->
+            <Label Text="{Binding StatusMessage}"
+                   FontSize="14"
+                   HorizontalOptions="Center"
+                   TextColor="{AppThemeBinding Light=#666666, Dark=#999999}" />
+
+            <!-- Loading Indicator -->
+            <ActivityIndicator IsRunning="{Binding IsLoading}"
+                              IsVisible="{Binding IsLoading}"
+                              Color="{AppThemeBinding Light=#007AFF, Dark=#0A84FF}" />
+
+            <!-- Action Buttons -->
+            <Grid ColumnDefinitions="*,*" ColumnSpacing="10" Margin="0,10">
+                <Button Grid.Column="0"
+                        Text="Test Connection"
+                        Command="{Binding TestConnectionCommand}"
+                        BackgroundColor="{AppThemeBinding Light=#34C759, Dark=#30D158}"
+                        TextColor="White" />
+
+                <Button Grid.Column="1"
+                        Text="Save Settings"
+                        Command="{Binding SaveSettingsCommand}"
+                        BackgroundColor="{AppThemeBinding Light=#007AFF, Dark=#0A84FF}"
+                        TextColor="White"
+                        FontAttributes="Bold" />
+            </Grid>
+
+        </VerticalStackLayout>
+    </ScrollView>
+</ContentPage>

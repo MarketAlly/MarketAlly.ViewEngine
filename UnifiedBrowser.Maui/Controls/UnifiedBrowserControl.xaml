@@ -1,0 +1,436 @@
+<?xml version="1.0" encoding="utf-8" ?>
+<ContentView xmlns="http://schemas.microsoft.com/dotnet/2021/maui"
+             xmlns:x="http://schemas.microsoft.com/winfx/2009/xaml"
+             xmlns:controls="clr-namespace:MarketAlly.Maui.ViewEngine;assembly=MarketAlly.Maui.ViewEngine"
+             xmlns:local="clr-namespace:UnifiedBrowser.Maui.Converters"
+             xmlns:dx="http://schemas.devexpress.com/maui"
+             x:Class="UnifiedBrowser.Maui.Controls.UnifiedBrowserControl"
+             x:Name="BrowserControlRoot">
+
+    <ContentView.Resources>
+        <ResourceDictionary>
+            <local:AdBackgroundColorConverter x:Key="AdBackgroundColorConverter"/>
+            <local:InvertedBoolConverter x:Key="InvertedBoolConverter"/>
+            <local:AndConverter x:Key="AndConverter"/>
+            <local:BookmarkIconConverter x:Key="BookmarkIconConverter"/>
+        </ResourceDictionary>
+    </ContentView.Resources>
+
+    <Grid RowDefinitions="Auto,Auto,*">
+        <Grid Grid.Row="1">
+            <Grid BackgroundColor="{AppThemeBinding Light=#F5F5F5, Dark=#1C1C1E}" RowDefinitions="Auto,*" IsVisible="{Binding IsLinksVisible}">
+                <dx:DXToolbar x:Name="LinkToolbar" Grid.Row="0">
+                    <dx:ToolbarPage Name="SearchPage">
+                        <dx:ToolbarCustomItem HorizontalOptions="FillAndExpand">
+                            <dx:TextEdit x:Name="SearchEntry"
+                                 PlaceholderText="Search..."
+                                 Text="{Binding SearchQuery, Mode=TwoWay}"
+                                 ClearIconVisibility="Auto"
+                                 TextColor="{AppThemeBinding Light=Black, Dark=White}"
+                                 PlaceholderColor="{AppThemeBinding Light=#999999, Dark=#666666}"
+                                 BackgroundColor="{AppThemeBinding Light=White, Dark=#2C2C2E}"
+                                 BoxMode="Outlined"
+                                 StartIcon="search"
+                                 ReturnType="Search"
+                                 FocusedBorderColor="{AppThemeBinding Light=#007AFF, Dark=#0A84FF}"
+                                 HeightRequest="40"
+                                 HorizontalOptions="FillAndExpand"
+                                 BoxPadding="10,10"
+                                 MinimumWidthRequest="200"/>
+                        </dx:ToolbarCustomItem>
+                    </dx:ToolbarPage>
+                    <dx:ToolbarNavigationButton Icon="search"
+                            ShowIcon="True"
+                            ShowContent="False"
+                            PageName="SearchPage"
+                            Placement="FixedLeft"
+                            IconColor="{AppThemeBinding Light=#007AFF, Dark=#0A84FF}"
+                            ToolTipProperties.Text="Links"/>
+                    <dx:ToolbarText
+                        Content="{Binding LinkCountText}"
+                        ShowContent="True"
+                        HorizontalContentAlignment="Center"
+                        TextHorizontalAlignment="Center"
+                        TextColor="{AppThemeBinding Light=Black, Dark=White}"/>
+                    <dx:ToolbarToggleButton Icon="ads_click"
+                            ShowIcon="True"
+                            ShowContent="False"
+                            IsChecked="{Binding ShowAds, Mode=TwoWay}"
+                            IsEnabled="{Binding HasAds}"
+                            IconColor="{AppThemeBinding Light=#007AFF, Dark=#0A84FF}"
+                            ToolTipProperties.Text="Toggle ad visibility"
+                            IsVisible="{Binding EnableAdDetection}"
+                            Placement="FixedRight"/>
+                    <dx:ToolbarSeparator Placement="FixedRight"/>
+                    <dx:ToolbarButton Icon="unarchive"
+                            ShowIcon="True"
+                            ShowContent="False"
+                            Command="{Binding ClipboardLinksCommand}"
+                            IconColor="{AppThemeBinding Light=#007AFF, Dark=#0A84FF}"
+                            ToolTipProperties.Text="Copy links to clipboard"
+                            Placement="FixedRight"/>
+
+                </dx:DXToolbar>
+                <!-- Loading Indicator for Links -->
+                <VerticalStackLayout IsVisible="{Binding IsLoadingLinks}" Grid.Row="1"
+                                    VerticalOptions="Center"
+                                    HorizontalOptions="Center"
+                                    Spacing="20">
+                    <ActivityIndicator IsRunning="{Binding IsLoadingLinks}"
+                                       Color="{AppThemeBinding Light=#007AFF, Dark=#0A84FF}"
+                                       HeightRequest="40"
+                                       WidthRequest="40"/>
+                    <Label Text="Loading links..."
+                           FontSize="16"
+                           TextColor="{AppThemeBinding Light=#666666, Dark=#AAAAAA}"
+                           HorizontalOptions="Center"/>
+                </VerticalStackLayout>
+
+                <!-- No Links Message -->
+                <VerticalStackLayout VerticalOptions="Center"
+                                     HorizontalOptions="Center"
+                                     Spacing="20"
+                                     Grid.Row="1"
+                                     Padding="40">
+                    <VerticalStackLayout.IsVisible>
+                        <MultiBinding Converter="{StaticResource AndConverter}">
+                            <Binding Path="IsLoadingLinks" Converter="{StaticResource InvertedBoolConverter}"/>
+                            <Binding Path="FilteredBodyRoutes.Count" Converter="{StaticResource InvertedBoolConverter}"/>
+                        </MultiBinding>
+                    </VerticalStackLayout.IsVisible>
+                    <Label Text="🔗"
+                           FontSize="48"
+                           HorizontalOptions="Center"/>
+                    <Label Text="No Links Found"
+                           FontSize="20"
+                           FontAttributes="Bold"
+                           TextColor="{AppThemeBinding Light=#333333, Dark=#CCCCCC}"
+                           HorizontalOptions="Center"/>
+                    <Label Text="This page doesn't contain any links."
+                           FontSize="14"
+                           TextColor="{AppThemeBinding Light=#666666, Dark=#AAAAAA}"
+                           HorizontalOptions="Center"
+                           HorizontalTextAlignment="Center"/>
+                </VerticalStackLayout>
+
+                <!-- Links CollectionView -->
+                <dx:DXCollectionView ItemsSource="{Binding FilteredBodyRoutes}"
+                                 SelectionMode="Single"
+                                 ItemSeparatorColor="{AppThemeBinding Light=#E0E0E0, Dark=#3A3A3C}"
+                                 ItemSeparatorThickness="1"
+                                 Grid.Row="1"
+                                 BackgroundColor="{AppThemeBinding Light=White, Dark=#1C1C1E}"
+                                 Tap="DXCollectionView_Tap">
+                <dx:DXCollectionView.IsVisible>
+                    <MultiBinding Converter="{StaticResource AndConverter}">
+                        <Binding Path="IsLoadingLinks" Converter="{StaticResource InvertedBoolConverter}"/>
+                        <Binding Path="FilteredBodyRoutes.Count"/>
+                    </MultiBinding>
+                </dx:DXCollectionView.IsVisible>
+                <dx:DXCollectionView.ItemTemplate>
+                    <DataTemplate>
+                        <Grid Padding="15,10"
+                              RowDefinitions="Auto,Auto,Auto"
+                              ColumnDefinitions="*,Auto"
+                              BackgroundColor="{Binding IsPotentialAd, Converter={StaticResource AdBackgroundColorConverter}}">
+
+                            <!-- Title -->
+                            <Label Grid.Row="0" Grid.Column="0"
+                                   Text="{Binding Title}"
+                                   FontSize="16"
+                                   FontAttributes="Bold"
+                                   TextColor="{AppThemeBinding Light=#007ACC, Dark=#4A9FD5}"
+                                   LineBreakMode="TailTruncation"
+                                   MaxLines="2"/>
+
+                            <!-- Ranking Badge -->
+                            <Border Grid.Row="0" Grid.Column="1"
+                                    BackgroundColor="{AppThemeBinding Light=#007AFF, Dark=#0A84FF}"
+                                    Padding="8,4"
+                                    StrokeThickness="0"
+                                    VerticalOptions="Start"
+                                    Margin="10,0,0,0">
+                                <Border.StrokeShape>
+                                    <RoundRectangle CornerRadius="12"/>
+                                </Border.StrokeShape>
+                                <Label Text="{Binding Ranking, StringFormat='#{0}'}"
+                                       FontSize="12"
+                                       TextColor="White"
+                                       FontAttributes="Bold"/>
+                            </Border>
+
+                            <!-- URL -->
+                            <Label Grid.Row="1" Grid.Column="0" Grid.ColumnSpan="2"
+                                   Text="{Binding Url}"
+                                   FontSize="12"
+                                   TextColor="{AppThemeBinding Light=#666666, Dark=#AAAAAA}"
+                                   LineBreakMode="TailTruncation"
+                                   Margin="0,5,0,0"/>
+
+                            <!-- Occurrences and Ad Indicator -->
+                            <HorizontalStackLayout Grid.Row="2" Grid.Column="0" Grid.ColumnSpan="2"
+                                                   Spacing="5"
+                                                   Margin="0,5,0,0">
+                                <Label Text="📊"
+                                       FontSize="12"
+                                       VerticalOptions="Center"/>
+                                <Label Text="{Binding Occurrences, StringFormat='{0} occurrences'}"
+                                       FontSize="12"
+                                       TextColor="{AppThemeBinding Light=#007ACC, Dark=#4A9FD5}"
+                                       VerticalOptions="Center"/>
+                                <Label Text="📢 Sponsored"
+                                       FontSize="11"
+                                       TextColor="{AppThemeBinding Light=#FF6B00, Dark=#FF8C42}"
+                                       FontAttributes="Italic"
+                                       IsVisible="{Binding IsPotentialAd}"
+                                       VerticalOptions="Center"
+                                       Margin="10,0,0,0"/>
+                            </HorizontalStackLayout>
+                        </Grid>
+                    </DataTemplate>
+                </dx:DXCollectionView.ItemTemplate>
+            </dx:DXCollectionView>
+
+            </Grid>
+            <!-- Content Host for Active Tab's WebView -->
+            <ContentView x:Name="WebViewHost"
+                         IsVisible="{Binding IsWebViewVisible}"
+                         VerticalOptions="FillAndExpand"
+                         HorizontalOptions="FillAndExpand">
+                <!-- The active tab's WebView will be placed here dynamically -->
+            </ContentView>
+
+            <!-- Markdown Content Host with Toolbar -->
+            <Grid IsVisible="{Binding IsMarkdownViewVisible}"
+                  BackgroundColor="{AppThemeBinding Light=#F5F5F5, Dark=#1C1C1E}"
+                  RowDefinitions="Auto,*">
+
+                <!-- Markdown Toolbar -->
+                <dx:DXToolbar x:Name="MarkdownToolbar"
+                              Grid.Row="0"
+                              HeightRequest="50"
+                              BackgroundColor="{AppThemeBinding Light=#F5F5F5, Dark=#1C1C1E}">
+
+                    <dx:ToolbarButton Icon="refresh"
+                            ShowIcon="True"
+                            ShowContent="False"
+                            Command="{Binding RegenerateSummaryCommand}"
+                            IconColor="{AppThemeBinding Light=#007AFF, Dark=#0A84FF}"
+                            ToolTipProperties.Text="Regenerate Summary"
+                            Placement="FixedRight"/>
+                    <dx:ToolbarSeparator Placement="FixedRight"/>
+                    <dx:ToolbarToggleButton Icon="star"
+                            ShowIcon="True"
+                            ShowContent="False"
+                            IsChecked="{Binding IsFavorite, Mode=TwoWay}"
+                            IconColor="{AppThemeBinding Light=#007AFF, Dark=#0A84FF}"
+                            ToolTipProperties.Text="Toggle favorite"
+                            Placement="FixedRight"/>
+                    <dx:ToolbarButton Icon="trash"
+                            ShowIcon="True"
+                            ShowContent="False"
+                            Command="{Binding DeleteMarkdownDocumentCommand}"
+                            IconColor="{AppThemeBinding Light=#FF3B30, Dark=#FF453A}"
+                            ToolTipProperties.Text="Delete"
+                            Placement="FixedLeft"/>
+                </dx:DXToolbar>
+
+                <!-- Markdown WebView Host -->
+                <ContentView x:Name="MarkdownWebViewHost"
+                             Grid.Row="1"
+                             VerticalOptions="FillAndExpand"
+                             HorizontalOptions="FillAndExpand">
+                    <!-- The active tab's MarkdownWebView will be placed here dynamically -->
+                </ContentView>
+            </Grid>
+
+            <!-- Tab Switcher View -->
+            <ContentView x:Name="TabSwitcherHost"
+                         IsVisible="{Binding IsTabSwitcherVisible}"
+                         VerticalOptions="FillAndExpand"
+                         HorizontalOptions="FillAndExpand">
+                <!-- Tab switcher will be loaded here -->
+            </ContentView>
+
+            <!-- History View -->
+            <ContentView x:Name="HistoryViewHost"
+                         IsVisible="{Binding IsHistoryVisible}"
+                         VerticalOptions="FillAndExpand"
+                         HorizontalOptions="FillAndExpand">
+                <!-- History view will be loaded here -->
+            </ContentView>
+
+            <!-- Loading Indicator for Markdown Generation -->
+            <Grid IsVisible="{Binding IsGeneratingSummary}"
+                  BackgroundColor="{AppThemeBinding Light=#F0FFFFFF, Dark=#F0000000}">
+                <VerticalStackLayout VerticalOptions="Center"
+                                     HorizontalOptions="Center"
+                                     Spacing="20">
+                    <Border Padding="30,20"
+                            BackgroundColor="{AppThemeBinding Light=White, Dark=#1C1C1E}"
+                            StrokeThickness="0">
+                        <Border.StrokeShape>
+                            <RoundRectangle CornerRadius="16"/>
+                        </Border.StrokeShape>
+                        <VerticalStackLayout Spacing="15">
+                            <ActivityIndicator IsRunning="{Binding IsGeneratingSummary}"
+                                               Color="{AppThemeBinding Light=#007AFF, Dark=#0A84FF}"
+                                               HeightRequest="40"
+                                               WidthRequest="40"
+                                               HorizontalOptions="Center"/>
+                            <Label Text="{Binding GeneratingSummaryMessage, Source={x:Reference BrowserControlRoot}}"
+                                   FontSize="16"
+                                   TextColor="{AppThemeBinding Light=#333333, Dark=#CCCCCC}"
+                                   HorizontalOptions="Center"/>
+                        </VerticalStackLayout>
+                    </Border>
+                </VerticalStackLayout>
+            </Grid>
+        </Grid>
+
+        <dx:DXToolbar x:Name="MainToolbar"
+              Grid.Row="0"
+              IsVisible="{Binding ShowAddressBar, Source={x:Reference BrowserControlRoot}}">
+            <dx:ToolbarButton Icon="arrow_back_ios"
+                                ShowIcon="True"
+                                ShowContent="False"
+                                Command="{Binding GoBackCommand}"
+                                IsEnabled="{Binding CanGoBack}"
+                                IconColor="{AppThemeBinding Light=#007AFF, Dark=#0A84FF}"
+                                ToolTipProperties.Text="Back"/>
+            <dx:ToolbarButton Icon="home"
+                                ShowIcon="True"
+                                ShowContent="False"
+                                IconColor="{AppThemeBinding Light=#007AFF, Dark=#0A84FF}"
+                                IsVisible="{Binding ShowHomeButton, Source={x:Reference BrowserControlRoot}}"
+                                Command="{Binding ShowHomeCommand}">
+            </dx:ToolbarButton>
+            <dx:ToolbarButton Icon="search"
+                                ShowIcon="True"
+                                ShowContent="False"
+                                IconColor="{AppThemeBinding Light=#007AFF, Dark=#0A84FF}"
+                                IsVisible="{Binding ShowSearchButton, Source={x:Reference BrowserControlRoot}}"
+                                Command="{Binding ShowSearchCommand}">
+            </dx:ToolbarButton>
+            <dx:ToolbarNavigationButton Icon="globe"
+                                    ShowIcon="True"
+                                    ShowContent="False"
+                                    PageName="NavigatePage"
+                                    IconColor="{AppThemeBinding Light=#007AFF, Dark=#0A84FF}">
+            </dx:ToolbarNavigationButton>
+            <dx:ToolbarNavigationButton Icon="bookmarks"
+                                    ShowIcon="True"
+                                    ShowContent="False"
+                                    PageName="OutlookPage"
+                                    IconColor="{AppThemeBinding Light=#007AFF, Dark=#0A84FF}">
+            </dx:ToolbarNavigationButton>
+            <dx:ToolbarButton Icon="refresh"
+                                  ShowIcon="True"
+                                  ShowContent="False"
+                                  Command="{Binding RefreshCommand}"
+                                  IsVisible="{Binding ShowRefreshButton, Source={x:Reference BrowserControlRoot}}"
+                                  IconColor="{AppThemeBinding Light=#007AFF, Dark=#0A84FF}"
+                                  ToolTipProperties.Text="Refresh"/>
+
+            <!-- Outlook Page Items -->
+            <dx:ToolbarPage Name="OutlookPage">
+                <dx:ToolbarCustomItem>
+                    <dx:ChoiceChipGroup x:Name="markList"
+                        ItemsSource="{Binding Bookmarks}"
+                        Padding="5"
+                        ChipUseRippleEffect="True"
+                        IsMultiline="False"
+                        DisplayMember="Text"
+                        IsScrollBarVisible="False"
+                        ChipTextColor="{StaticResource Gray400}"
+                        ChipCornerRadius="20" ChipBorderThickness="0"
+                        ChipSelectedTextColor="White"
+                        ChipBorderColor="{StaticResource Gray400}"
+                        ChipTapCommand="{Binding ViewBookmarkCommand}"
+                        HorizontalOptions="Center"/>
+                </dx:ToolbarCustomItem>
+
+                <dx:ToolbarButton Icon="{Binding IsCurrentPageBookmarked, Converter={StaticResource BookmarkIconConverter}}"
+                                  ShowIcon="True"
+                                  ShowContent="False"
+                                  Command="{Binding FlipBookmarkCommand}"
+                                  Placement="FixedRight"
+                                  IconColor="{AppThemeBinding Light=#007AFF, Dark=#0A84FF}"
+                                  ToolTipProperties.Text="Toggle Bookmark">
+                </dx:ToolbarButton>
+            </dx:ToolbarPage>
+
+            <!-- Navigate Page Items -->
+            <dx:ToolbarPage Name="NavigatePage">
+                <dx:ToolbarCustomItem HorizontalOptions="FillAndExpand">
+                    <dx:TextEdit x:Name="AddressEntry"
+                                 PlaceholderText="Enter URL or search..."
+                                 Text="{Binding CurrentUrl, Mode=TwoWay}"
+                                 ReturnCommand="{Binding NavigateCommand}"
+                                 ClearIconVisibility="Auto"
+                                 TextColor="{AppThemeBinding Light=Black, Dark=White}"
+                                 PlaceholderColor="{AppThemeBinding Light=#999999, Dark=#666666}"
+                                 BackgroundColor="{AppThemeBinding Light=White, Dark=#2C2C2E}"
+                                 BoxMode="Outlined"
+                                 ReturnType="Go"
+                                 Keyboard="Url"
+                                 AutofillContentType="None"
+                                 IsSpellCheckEnabled="False"
+                                 StartIcon="info"
+                                 StartIconCommand="{Binding ShowAboutCommand}"
+                                 FocusedBorderColor="{AppThemeBinding Light=#007AFF, Dark=#0A84FF}"
+                                 HeightRequest="40"
+                                 HorizontalOptions="FillAndExpand"
+                                 BoxPadding="10,10"
+                                 MinimumWidthRequest="200"/>
+                </dx:ToolbarCustomItem>
+            </dx:ToolbarPage>
+
+            <!-- Separator -->
+            <dx:ToolbarSeparator Placement="FixedRight"/>
+            <dx:ToolbarToggleButton Icon="web_stories"
+                                    ShowIcon="True"
+                                    ShowContent="False"
+                                    AllowUncheckInGroup="True"
+                                    GroupName="ViewMode"
+                                    IsChecked="{Binding IsHistoryVisible, Mode=TwoWay}"
+                                    IsVisible="{Binding ShowTabsButton, Source={x:Reference BrowserControlRoot}}"
+                                    Placement="FixedRight"
+                                    ToolTipProperties.Text="Show History">
+            </dx:ToolbarToggleButton>
+            <dx:ToolbarToggleButton Icon="layers"
+                                    ShowIcon="True"
+                                    ShowContent="False"
+                                    AllowUncheckInGroup="True"
+                                    GroupName="ViewMode"
+                                    IsChecked="{Binding IsTabSwitcherVisible, Mode=TwoWay}"
+                                    IsVisible="{Binding ShowTabsButton, Source={x:Reference BrowserControlRoot}}"
+                                    Placement="FixedRight"
+                                    ToolTipProperties.Text="Show Tabs">
+            </dx:ToolbarToggleButton>
+            <dx:ToolbarToggleButton Icon="link"
+                                    ShowIcon="True"
+                                    ShowContent="False"
+                                    AllowUncheckInGroup="True"
+                                    GroupName="ViewMode"
+                                    IsChecked="{Binding IsLinksVisible, Mode=TwoWay}"
+                                    IsEnabled="{Binding AreActionButtonsEnabled}"
+                                    IsVisible="{Binding ShowLinksButton, Source={x:Reference BrowserControlRoot}}"
+                                    Placement="FixedRight"
+                                    ToolTipProperties.Text="Show Links">
+            </dx:ToolbarToggleButton>
+
+            <dx:ToolbarToggleButton Icon="summarize"
+                                    ShowIcon="True"
+                                    ShowContent="False"
+                                    AllowUncheckInGroup="True"
+                                    GroupName="ViewMode"
+                                    IsChecked="{Binding IsMarkdownViewVisible, Mode=TwoWay}"
+                                    IsEnabled="{Binding AreActionButtonsEnabled}"
+                                    IsVisible="{Binding ShowMarkdownButton, Source={x:Reference BrowserControlRoot}}"
+                                    Placement="FixedRight"
+                                    ToolTipProperties.Text="Toggle Markdown View">
+            </dx:ToolbarToggleButton>
+        </dx:DXToolbar>
+    </Grid>
+</ContentView>

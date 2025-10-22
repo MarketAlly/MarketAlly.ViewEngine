@@ -1,0 +1,185 @@
+<?xml version="1.0" encoding="utf-8" ?>
+<ContentView xmlns="http://schemas.microsoft.com/dotnet/2021/maui"
+             xmlns:x="http://schemas.microsoft.com/winfx/2009/xaml"
+             xmlns:dx="http://schemas.devexpress.com/maui"
+             xmlns:models="clr-namespace:UnifiedBrowser.Maui.Models"
+             xmlns:converters="clr-namespace:UnifiedBrowser.Maui.Views"
+             x:Class="UnifiedBrowser.Maui.Views.TabSwitcherView">
+
+    <ContentView.Resources>
+        <ResourceDictionary>
+            <converters:IsNullConverter x:Key="IsNullConverter"/>
+            <converters:IsNotNullConverter x:Key="IsNotNullConverter"/>
+            <converters:InvertedBoolConverter x:Key="InvertedBoolConverter"/>
+        </ResourceDictionary>
+    </ContentView.Resources>
+
+    <Grid BackgroundColor="{AppThemeBinding Light=#F5F5F5, Dark=#1C1C1E}">
+        <Grid.RowDefinitions>
+            <RowDefinition Height="Auto"/>
+            <RowDefinition Height="*"/>
+        </Grid.RowDefinitions>
+
+        <!-- Header -->
+        <dx:DXToolbar x:Name="TabToolbar" Grid.Row="0">
+            <dx:ToolbarButton Icon="trash"
+                            ShowIcon="True"
+                            ShowContent="False"
+                            Command="{Binding ClearAllTabsCommand}"
+                            IconColor="{AppThemeBinding Light=#FF3B30, Dark=#FF453A}"
+                            ToolTipProperties.Text="Clear All"
+                            Placement="FixedLeft"/>
+            <dx:ToolbarSeparator Placement="FixedLeft"/>
+            <dx:ToolbarText
+                Content="{Binding TabManager.TabCount, StringFormat='Tabs: {0} open'}"
+                ShowContent="True"
+                HorizontalContentAlignment="Center"
+                TextHorizontalAlignment="Center"
+                TextColor="{AppThemeBinding Light=Black, Dark=White}"/>
+            <dx:ToolbarButton Icon="add"
+                            ShowIcon="True"
+                            ShowContent="False"
+                            Command="{Binding AddTabCommand}"
+                            IsEnabled="{Binding TabManager.CanAddTab}"
+                            IconColor="{AppThemeBinding Light=#007AFF, Dark=#0A84FF}"
+                            ToolTipProperties.Text="Clear All"
+                            Placement="FixedRight"/>
+        </dx:DXToolbar>
+
+        <!-- Tab Grid -->
+        <dx:DXCollectionView x:Name="TabsCollectionView"
+                             Grid.Row="1"
+                             ItemsSource="{Binding TabManager.Tabs}"
+                             SelectionMode="Single"
+                             Margin="10"
+                             ItemSpacing="10"
+                             ItemSize="250"
+                             ItemSpanCount="2"
+                             ItemSpanSpacing="8"
+                             BackgroundColor="Transparent">
+
+            <dx:DXCollectionView.ItemTemplate>
+                <DataTemplate x:DataType="models:BrowserTab">
+                    <Border BackgroundColor="{AppThemeBinding Light=White, Dark=#2C2C2E}"
+                            StrokeThickness="1"
+                            Padding="0">
+                        <Border.StrokeShape>
+                            <RoundRectangle CornerRadius="12,10,0,0"/>
+                        </Border.StrokeShape>
+                        <Border.Shadow>
+                            <Shadow Offset="0,2"
+                                    Radius="4"
+                                    Opacity="0.1"
+                                    Brush="{AppThemeBinding Light=Black, Dark=White}"/>
+                        </Border.Shadow>
+
+                        <Grid RowDefinitions="*,Auto,Auto">
+                            <!-- Tab Preview/Thumbnail -->
+                            <Frame Grid.Row="0"
+                                   Padding="0"
+                                   CornerRadius="12"
+                                   BackgroundColor="{AppThemeBinding Light=#F0F0F0, Dark=#3A3A3C}"
+                                   HasShadow="False">
+                                <Grid>
+                                    <!-- Placeholder when no thumbnail -->
+                                    <VerticalStackLayout IsVisible="{Binding Thumbnail, Converter={StaticResource IsNullConverter}, ConverterParameter=True}"
+                                                         VerticalOptions="Center"
+                                                         HorizontalOptions="Center">
+                                        <Label Text="🌐"
+                                               FontSize="48"
+                                               IsVisible="{Binding Favicon, Converter={StaticResource IsNullConverter}}"
+                                               HorizontalOptions="Center"/>
+                                        <Image Grid.Column="0"
+                                               Source="{Binding Favicon}"
+                                               WidthRequest="16"
+                                               HeightRequest="16"
+                                               Margin="0,0,5,0"
+                                               IsVisible="{Binding Favicon, Converter={StaticResource IsNotNullConverter}}"/>
+                                        <Label Text="{Binding Title}"
+                                               FontSize="12"
+                                               HorizontalOptions="Center"
+                                               LineBreakMode="TailTruncation"
+                                               MaxLines="2"
+                                               Margin="10,5"
+                                               TextColor="{AppThemeBinding Light=#666666, Dark=#AAAAAA}"/>
+                                    </VerticalStackLayout>
+
+                                    <!-- Actual thumbnail if available -->
+                                    <Image Source="{Binding Thumbnail}"
+                                           Aspect="AspectFill"
+                                           BackgroundColor="White"
+                                           IsVisible="{Binding Thumbnail, Converter={StaticResource IsNotNullConverter}}"/>
+
+                                    <!-- Loading indicator -->
+                                    <ActivityIndicator IsRunning="{Binding IsLoading}"
+                                                       IsVisible="{Binding IsLoading}"
+                                                       Color="{AppThemeBinding Light=#007AFF, Dark=#0A84FF}"
+                                                       HorizontalOptions="Center"
+                                                       VerticalOptions="Center"/>
+                                </Grid>
+                            </Frame>
+                            <Button Grid.Column="1"
+                                Text="✕"
+                                FontSize="18"
+                                BorderWidth="1"
+                                HorizontalOptions="End"
+                                VerticalOptions="Start"
+                                BorderColor="{AppThemeBinding Light=#F0F0F0, Dark=#3A3A3C}"
+                                BackgroundColor="{AppThemeBinding Light=#F5F5F5, Dark=#1C1C1E}"
+                                TextColor="{AppThemeBinding Light=#FF3B30, Dark=#FF453A}"
+                                Padding="0" Margin="0"
+                                CornerRadius="0"
+                                WidthRequest="18"
+                                HeightRequest="18"
+                                Command="{Binding Source={x:Reference TabsCollectionView}, Path=BindingContext.CloseTabCommand}"
+                                CommandParameter="{Binding .}"/>
+
+                            <!-- Tab Title -->
+                            <Grid Grid.Row="1" Padding="10,8,10,0">
+                                <Label
+                                       Text="{Binding Title}"
+                                       FontSize="14"
+                                       FontAttributes="Bold"
+                                       LineBreakMode="TailTruncation"
+                                       MaxLines="2"
+                                       TextColor="{AppThemeBinding Light=Black, Dark=White}"/>
+                            </Grid>
+
+                            <!-- Tab URL and Close Button -->
+                            <Grid Grid.Row="2" Padding="10,4,10,10">
+                                <Label Grid.Column="0"
+                                       Text="{Binding Url}"
+                                       FontSize="11"
+                                       LineBreakMode="TailTruncation"
+                                       MaxLines="1"
+                                       TextColor="{AppThemeBinding Light=#666666, Dark=#AAAAAA}"/>
+
+                            </Grid>
+                        </Grid>
+                    </Border>
+                </DataTemplate>
+            </dx:DXCollectionView.ItemTemplate>
+        </dx:DXCollectionView>
+
+        <!-- Empty State -->
+        <VerticalStackLayout Grid.Row="1"
+                             IsVisible="{Binding TabManager.HasTabs, Converter={StaticResource InvertedBoolConverter}}"
+                             VerticalOptions="Center"
+                             HorizontalOptions="Center"
+                             Spacing="20">
+            <Label Text="📂"
+                   FontSize="64"
+                   HorizontalOptions="Center"/>
+            <Label Text="No tabs open"
+                   FontSize="18"
+                   TextColor="{AppThemeBinding Light=#666666, Dark=#AAAAAA}"
+                   HorizontalOptions="Center"/>
+            <Button Text="Open New Tab"
+                    Command="{Binding AddTabCommand}"
+                    BackgroundColor="{AppThemeBinding Light=#007AFF, Dark=#0A84FF}"
+                    TextColor="White"
+                    CornerRadius="8"
+                    Padding="20,10"/>
+        </VerticalStackLayout>
+    </Grid>
+</ContentView>

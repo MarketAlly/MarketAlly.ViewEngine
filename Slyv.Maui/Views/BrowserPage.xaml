@@ -1,0 +1,19 @@
+<?xml version="1.0" encoding="utf-8" ?>
+<ContentPage xmlns="http://schemas.microsoft.com/dotnet/2021/maui"
+             xmlns:x="http://schemas.microsoft.com/winfx/2009/xaml"
+             xmlns:browser="clr-namespace:UnifiedBrowser.Maui.Controls;assembly=UnifiedBrowser.Maui"
+             x:Class="Slyv.Maui.Views.BrowserPage"
+             Title="Browser">
+
+    <ContentPage.ToolbarItems>
+        <ToolbarItem Text="Refresh"
+                     IconImageSource="refresh"
+                     Clicked="OnRefreshClicked"
+                     Order="Primary"
+                     Priority="0" />
+    </ContentPage.ToolbarItems>
+
+    <!-- ContentView will be populated from code-behind with injected control -->
+    <ContentView x:Name="BrowserHost" />
+
+</ContentPage>

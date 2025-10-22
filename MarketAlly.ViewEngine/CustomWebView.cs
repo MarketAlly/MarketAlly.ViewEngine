@@ -109,7 +109,7 @@ namespace MarketAlly.Maui.ViewEngine
 		private async void OnNavigated(object sender, WebNavigatedEventArgs e)
 		{
 			// Check if navigation was successful and URL changed
-			if (e.Result == WebNavigationResult.Success)
+			if (e.Result == Microsoft.Maui.WebNavigationResult.Success)
 			{
 				// Auto-detection logic
 				if (AutoDetectNavigationIssues && !string.IsNullOrEmpty(e.Url))

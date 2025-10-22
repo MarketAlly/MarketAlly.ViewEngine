@@ -1,0 +1,106 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <TargetFrameworks>net9.0-android;net9.0-ios</TargetFrameworks>
+    <!--<TargetFrameworks Condition="$([MSBuild]::IsOSPlatform('windows'))">$(TargetFrameworks);net9.0-windows10.0.19041.0</TargetFrameworks>-->
+    <UseMaui>true</UseMaui>
+    <SingleProject>true</SingleProject>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <Nullable>enable</Nullable>
+    <GeneratePackageOnBuild>true</GeneratePackageOnBuild>
+    <PackageOutputPath>C:\Users\logik\Dropbox\Nugets</PackageOutputPath>
+
+    <!-- NuGet Package Information -->
+    <PackageId>UnifiedBrowser.Maui</PackageId>
+    <Version>1.0.1</Version>
+    <Authors>David H Friedel Jr</Authors>
+    <Company>MarketAlly</Company>
+    <Product>UnifiedBrowser Control for .NET MAUI</Product>
+    <Title>UnifiedBrowser.Maui - AI-Powered Browser Control</Title>
+    <Description>
+      A comprehensive browser control library for .NET MAUI applications with advanced features including:
+
+      - Multi-tab support with state persistence and thumbnails
+      - Bookmark management with import/export (Netscape HTML format)
+      - Browsing history with topic filtering and search
+      - AI-powered page summarization using UnifiedRag.Maui
+      - Smart link extraction with ad detection
+      - Markdown rendering with syntax highlighting
+      - Support for multiple LLM providers (OpenAI, Claude, Together.AI, local models)
+      - Full data integration with UnifiedData.Maui
+      - Customizable UI with 30+ bindable properties
+      - Touch gesture support and responsive design
+    </Description>
+    <Copyright>Copyright © 2025 MarketAlly</Copyright>
+    <PackageTags>maui browser webview ai summarization bookmarks tabs history markdown rag llm openai claude anthropic gemini mistral navigation mobile</PackageTags>
+    <PackageLicenseExpression>MIT</PackageLicenseExpression>
+    <PackageProjectUrl>https://github.com/MarketAlly/UnifiedBrowser.Maui</PackageProjectUrl>
+    <RepositoryUrl>https://github.com/MarketAlly/UnifiedBrowser.Maui</RepositoryUrl>
+    <RepositoryType>git</RepositoryType>
+    <!--<PackageIcon>icon.png</PackageIcon>-->
+    <PackageReadmeFile>README.md</PackageReadmeFile>
+    <PackageReleaseNotes>
+      Initial release:
+      - Multi-tab browsing with persistence
+      - Bookmark management (import/export)
+      - Browsing history with filtering
+      - AI-powered summarization
+      - Smart link extraction with ad detection
+      - Markdown rendering
+      - Comprehensive API with 30+ properties
+      - Cross-platform support (iOS, Android)
+    </PackageReleaseNotes>
+
+    <!-- Library Settings -->
+    <GenerateDocumentationFile>true</GenerateDocumentationFile>
+    <NoWarn>$(NoWarn);CS1591</NoWarn>
+  </PropertyGroup>
+
+  <PropertyGroup Condition="'$(TargetFramework)' == 'net9.0-android'">
+    <SupportedOSPlatformVersion>24.0</SupportedOSPlatformVersion>
+  </PropertyGroup>
+
+  <PropertyGroup Condition="'$(TargetFramework)' == 'net9.0-ios'">
+    <SupportedOSPlatformVersion>11.0</SupportedOSPlatformVersion>
+  </PropertyGroup>
+
+  <!--<PropertyGroup Condition="'$(TargetFramework)' == 'net9.0-windows10.0.19041.0'">
+    <SupportedOSPlatformVersion>10.0.17763.0</SupportedOSPlatformVersion>
+  </PropertyGroup>-->
+
+  <ItemGroup>
+    <!-- Core Dependencies -->
+    <PackageReference Include="DevExpress.Maui.Core" Version="25.1.5" />
+    <PackageReference Include="MarketAlly.TouchEffect.Maui" Version="1.0.0" />
+    <PackageReference Include="Microsoft.Maui.Controls" Version="9.0.120" />
+    <PackageReference Include="Microsoft.Maui.Controls.Compatibility" Version="9.0.120" />
+    <PackageReference Include="CommunityToolkit.Maui" Version="12.2.0" />
+    <PackageReference Include="CommunityToolkit.Mvvm" Version="8.4.0" />
+    <PackageReference Include="MarketAlly.ViewEngine" Version="2.0.2" />
+    <PackageReference Include="MarketAlly.Dialogs.Maui" Version="1.1.0" />
+    <PackageReference Include="Markdig" Version="0.43.0" />
+    <PackageReference Include="DevExpress.Maui.CollectionView" Version="25.1.5" />
+    <PackageReference Include="DevExpress.Maui.Controls" Version="25.1.5" />
+    <PackageReference Include="DevExpress.Maui.Editors" Version="25.1.5" />
+
+    <!-- Logging -->
+    <PackageReference Include="Microsoft.Extensions.Logging.Abstractions" Version="9.0.10" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <!-- Project References -->
+    <ProjectReference Include="..\..\rag\UnifiedRag.Maui\UnifiedRag.Maui.csproj" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <!-- Images -->
+    <MauiImage Include="Resources\Images\*.svg" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <!-- Package Assets -->
+    <None Include="README.md" Pack="true" PackagePath="\" />
+    <!--<None Include="icon.png" Pack="true" PackagePath="\" Condition="Exists('icon.png')" />-->
+  </ItemGroup>
+
+</Project>

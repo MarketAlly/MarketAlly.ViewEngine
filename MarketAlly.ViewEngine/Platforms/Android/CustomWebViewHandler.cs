@@ -423,19 +423,33 @@ namespace MarketAlly.Maui.ViewEngine
 
 						using var page = pdfRenderer.OpenPage(0); // First page
 
+						// CRITICAL: Enforce maximum dimensions to prevent Android Canvas limit (100MB)
+						// Android canvas has a hard limit of ~100MB per bitmap
+						const int MAX_DIMENSION = 2048; // Safe limit: 2048x2048x4 = 16MB
+						int safeWidth = Math.Min(width, MAX_DIMENSION);
+						int safeHeight = Math.Min(height, MAX_DIMENSION);
+
 						// Calculate dimensions maintaining aspect ratio
 						float aspectRatio = (float)page.Width / page.Height;
-						int targetWidth = width;
-						int targetHeight = height;
+						int targetWidth = safeWidth;
+						int targetHeight = safeHeight;
 
-						if (aspectRatio > (width / (float)height))
+						if (aspectRatio > (safeWidth / (float)safeHeight))
 						{
-							targetHeight = (int)(width / aspectRatio);
+							targetHeight = (int)(safeWidth / aspectRatio);
 						}
 						else
 						{
-							targetWidth = (int)(height * aspectRatio);
+							targetWidth = (int)(safeHeight * aspectRatio);
 						}
+
+						// Final safety check: ensure dimensions are reasonable
+						if (targetWidth > MAX_DIMENSION) targetWidth = MAX_DIMENSION;
+						if (targetHeight > MAX_DIMENSION) targetHeight = MAX_DIMENSION;
+						if (targetWidth <= 0) targetWidth = 320;
+						if (targetHeight <= 0) targetHeight = 180;
+
+						System.Diagnostics.Debug.WriteLine($"PDF thumbnail: requested={width}x{height}, rendering={targetWidth}x{targetHeight}, aspect={aspectRatio:F2}");
 
 						// Create bitmap
 						using var bitmap = Bitmap.CreateBitmap(targetWidth, targetHeight, Bitmap.Config.Argb8888);

@@ -39,7 +39,7 @@ namespace MarketAlly.Maui.ViewEngine.Platforms.Android
         static void MapUri(PdfViewHandler handler, IPdfView pdfView)
         {
             handler._fileName = pdfView.Uri;
-            handler.RenderPages();
+            _ = handler.RenderPagesAsync();
         }
 
         static void MapIsHorizontal(PdfViewHandler handler, IPdfView pdfView)
@@ -91,60 +91,76 @@ namespace MarketAlly.Maui.ViewEngine.Platforms.Android
             {
                 //  Change the behavior of the component if the size of the selected area has been changed
                 //  (for example, when the screen is flipped or the screen is split)
-                RenderPages();
+                _ = RenderPagesAsync();
             }
-            
+
             return base.GetDesiredSize(widthConstraint, heightConstraint);
         }
 
-        void RenderPages()
+        async Task RenderPagesAsync()
         {
             if (_fileName == null)
                 return;
 
             var isVertival = !VirtualView.IsHorizontal;
+            var pageAppearance = _pageAppearance;
 
-            var renderer = new PdfRenderer(ParcelFileDescriptor.Open(new Java.IO.File(_fileName), ParcelFileMode.ReadOnly));
-
-            var pages = new List<Bitmap>();
-
-            _screenHelper.Invalidate();
-
-            // render all pages
-            var pageCount = renderer.PageCount;
-            for (int i = 0; i < pageCount; i++)
+            // Move heavy rendering work to background thread
+            var pages = await Task.Run(() =>
             {
-                var page = renderer.OpenPage(i);
+                var renderer = new PdfRenderer(ParcelFileDescriptor.Open(new Java.IO.File(_fileName), ParcelFileMode.ReadOnly));
+                var bitmapList = new List<Bitmap>();
 
-                // create bitmap at appropriate size
-                var widthAndHeight = _screenHelper.GetImageWidthAndHeight(isVertival, page);
-                var bitmap = Bitmap.CreateBitmap(widthAndHeight.Width, widthAndHeight.Height, Bitmap.Config.Argb8888);
+                _screenHelper.Invalidate();
 
-                //  If you need to apply a color to the page
-                //bitmap.EraseColor(Color.White);
-                
-                // Crop page
-                var matrix = GetCropMatrix(page, bitmap, _pageAppearance?.Crop ?? Thickness.Zero);
+                // render all pages
+                var pageCount = renderer.PageCount;
+                for (int i = 0; i < pageCount; i++)
+                {
+                    var page = renderer.OpenPage(i);
 
-                // render PDF page to bitmap
-                page.Render(bitmap, null, matrix, PdfRenderMode.ForDisplay);
+                    // create bitmap at appropriate size
+                    var widthAndHeight = _screenHelper.GetImageWidthAndHeight(isVertival, page);
+                    var bitmap = Bitmap.CreateBitmap(widthAndHeight.Width, widthAndHeight.Height, Bitmap.Config.Argb8888);
 
-                // add bitmap to list
-                pages.Add(bitmap);
+                    //  If you need to apply a color to the page
+                    //bitmap.EraseColor(Color.White);
 
-                // close the page
-                page.Close();
+                    // Crop page
+                    var matrix = GetCropMatrix(page, bitmap, pageAppearance?.Crop ?? Thickness.Zero);
+
+                    // render PDF page to bitmap
+                    page.Render(bitmap, null, matrix, PdfRenderMode.ForDisplay);
+
+                    // add bitmap to list
+                    bitmapList.Add(bitmap);
+
+                    // close the page
+                    page.Close();
+                }
+
+                // close the renderer
+                renderer.Close();
+
+                return bitmapList;
+            });
+
+            // CRITICAL: Ensure UI update happens on main thread
+            // After await Task.Run(), we may not be on UI thread
+            try
+            {
+                await MainThread.InvokeOnMainThreadAsync(() =>
+                {
+                    var adapter = new PdfBitmapAdapter(pages, _pageAppearance);
+                    _recycleView.SetAdapter(adapter);
+                    System.Diagnostics.Debug.WriteLine($"PDF adapter set successfully with {pages.Count} pages");
+                });
             }
-
-            // close the renderer
-            renderer.Close();
-
-            // Create an adapter for the RecyclerView, and pass it the
-            // data set (the bitmap list) to manage:
-            var adapter = new PdfBitmapAdapter(pages, _pageAppearance);
-
-            // Plug the adapter into the RecyclerView:
-            _recycleView.SetAdapter(adapter);
+            catch (Exception ex)
+            {
+                System.Diagnostics.Debug.WriteLine($"ERROR setting PDF adapter: {ex.Message}");
+                System.Diagnostics.Debug.WriteLine($"Stack trace: {ex.StackTrace}");
+            }
         }
 
         private Matrix? GetCropMatrix(PdfRenderer.Page page, Bitmap bitmap, Thickness bounds)
