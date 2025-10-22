@@ -957,7 +957,19 @@ namespace MarketAlly.Maui.ViewEngine
 					System.Diagnostics.Debug.WriteLine($"Reload: Clearing cache for {_currentPdfUrl}");
 					_pdfCache.Remove(_currentPdfUrl);
 				}
-				await ShowPdfAsync(_currentPdfUrl);
+
+				// On Android, we need to navigate through the WebView to get cookies
+				// This will trigger OnDownloadStart which has access to session cookies
+				if (DeviceInfo.Platform == DevicePlatform.Android)
+				{
+					System.Diagnostics.Debug.WriteLine($"Reload: Navigating via WebView to get cookies for {_currentPdfUrl}");
+					_webView.Source = new UrlWebViewSource { Url = _currentPdfUrl };
+				}
+				else
+				{
+					// iOS/Windows: use direct download
+					await ShowPdfAsync(_currentPdfUrl);
+				}
 			}
 			else if (_webView.Source is UrlWebViewSource urlSource && !string.IsNullOrEmpty(urlSource.Url))
 			{
