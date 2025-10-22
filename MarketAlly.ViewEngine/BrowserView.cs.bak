@@ -503,31 +503,31 @@ namespace MarketAlly.Maui.ViewEngine
 		PageDataChanged?.Invoke(this, pageData);
 	}
 
-	internal async Task ShowPdfAsync(string url)
-	{
-		try
+		internal async Task ShowPdfAsync(string url)
 		{
-			IsLoading = true;
-			DownloadProgress = 0.0;
-			_currentPdfUrl = url;
-
-			// Check cache first
-			string extractedText = string.Empty;
-			string tempFile = null;
-
-			if (_pdfCache.ContainsKey(url))
+			try
 			{
-				System.Diagnostics.Debug.WriteLine($"Using cached PDF for {url}");
-				var cached = _pdfCache[url];
-				_currentPdfData = cached.data;
-				tempFile = cached.tempFilePath;
-				extractedText = cached.extractedText;
-				DownloadProgress = 1.0;
-			}
-			else
-			{
-				// Download PDF with proper headers and progress reporting
-				using var httpClient = new HttpClient(new HttpClientHandler
+				IsLoading = true;
+				DownloadProgress = 0.0;
+				_currentPdfUrl = url;
+
+				// Check cache first
+				string extractedText = string.Empty;
+				string tempFile = null;
+
+				if (_pdfCache.ContainsKey(url))
+				{
+					System.Diagnostics.Debug.WriteLine($"Using cached PDF for {url}");
+					var cached = _pdfCache[url];
+					_currentPdfData = cached.data;
+					tempFile = cached.tempFilePath;
+					extractedText = cached.extractedText;
+					DownloadProgress = 1.0;
+				}
+				else
+				{
+					// Download PDF with proper headers and progress reporting
+					using var httpClient = new HttpClient(new HttpClientHandler
 				{
 					AllowAutoRedirect = true,
 					MaxAutomaticRedirections = 10
@@ -577,9 +577,9 @@ namespace MarketAlly.Maui.ViewEngine
 				{
 					// Not a valid PDF, let WebView handle it instead
 					System.Diagnostics.Debug.WriteLine($"Downloaded content is not a valid PDF, falling back to WebView");
-					_failedPdfUrls.Add(url);
-					_webView.IsVisible = true;
-					_pdfView.IsVisible = false;
+				_failedPdfUrls.Add(url);
+				_webView.IsVisible = true;
+				_pdfView.IsVisible = false;
 					IsLoading = false;
 					DownloadProgress = 0.0;
 					_currentPdfUrl = null;
@@ -590,10 +590,17 @@ namespace MarketAlly.Maui.ViewEngine
 				System.Diagnostics.Debug.WriteLine($"PDF header validated successfully");
 
 				// Save to temp file for PdfView
-				tempFile = DataSources.PdfTempFileHelper.CreateTempPdfFilePath();
+				var tempFile = DataSources.PdfTempFileHelper.CreateTempPdfFilePath();
 				await File.WriteAllBytesAsync(tempFile, _currentPdfData);
 
+				// Show PDF
+				_pdfView.Uri = tempFile;
+				_webView.IsVisible = false;
+				_pdfView.IsVisible = true;
+				UpdatePdfActionsPanelVisibility();
+
 				// Extract text for PageData (best effort - ignore errors)
+				string extractedText = string.Empty;
 				if (_webView.Handler is WebViewHandler handler)
 				{
 					try
@@ -606,60 +613,50 @@ namespace MarketAlly.Maui.ViewEngine
 					}
 				}
 
-				// Cache the PDF for future navigation
-				_pdfCache[url] = (_currentPdfData, tempFile, extractedText);
-				System.Diagnostics.Debug.WriteLine($"Cached PDF: {url}");
+				// Create PageData for PDF
+				var pdfTitle = System.IO.Path.GetFileName(url);
+				if (string.IsNullOrWhiteSpace(pdfTitle))
+				{
+					// Extract title from URL or use a default
+					var uri = new Uri(url);
+					pdfTitle = uri.Segments.Length > 0 ? uri.Segments[^1] : "PDF Document";
+				}
+
+				var pageData = new PageData
+				{
+					Title = pdfTitle,
+					Body = extractedText,
+					Url = url,
+					MetaDescription = "PDF Document"
+				};
+
+				// Add to history
+				System.Diagnostics.Debug.WriteLine($"ShowPdfAsync: _isNavigatingFromHistory={_isNavigatingFromHistory}, URL={url}, Title={pdfTitle}");
+				if (!_isNavigatingFromHistory)
+				{
+					AddToNavigationHistory(pageData);
+				}
+				else
+				{
+					System.Diagnostics.Debug.WriteLine("PDF NOT added to history - navigating from history");
+				}
+
+				_isNavigatingFromHistory = false;
+				IsLoading = false;
+
+				// Fire event
+				PageDataChanged?.Invoke(this, pageData);
 			}
-
-			// Show PDF (whether from cache or freshly downloaded)
-			_pdfView.Uri = tempFile;
-			_webView.IsVisible = false;
-			_pdfView.IsVisible = true;
-			UpdatePdfActionsPanelVisibility();
-
-			// Create PageData for PDF
-			var pdfTitle = System.IO.Path.GetFileName(url);
-			if (string.IsNullOrWhiteSpace(pdfTitle))
+			catch (Exception ex)
 			{
-				// Extract title from URL or use a default
-				var uri = new Uri(url);
-				pdfTitle = uri.Segments.Length > 0 ? uri.Segments[^1] : "PDF Document";
+				IsLoading = false;
+				DownloadProgress = 0.0;
+				_currentPdfUrl = null;
+				UpdatePdfActionsPanelVisibility();
+				System.Diagnostics.Debug.WriteLine($"Error loading PDF: {ex.Message}");
 			}
-
-			var pageData = new PageData
-			{
-				Title = pdfTitle,
-				Body = extractedText,
-				Url = url,
-				MetaDescription = "PDF Document"
-			};
-
-			// Add to history
-			System.Diagnostics.Debug.WriteLine($"ShowPdfAsync: _isNavigatingFromHistory={_isNavigatingFromHistory}, URL={url}, Title={pdfTitle}");
-			if (!_isNavigatingFromHistory)
-			{
-				AddToNavigationHistory(pageData);
-			}
-			else
-			{
-				System.Diagnostics.Debug.WriteLine("PDF NOT added to history - navigating from history");
-			}
-
-			_isNavigatingFromHistory = false;
-			IsLoading = false;
-
-			// Fire event
-			PageDataChanged?.Invoke(this, pageData);
 		}
-		catch (Exception ex)
-		{
-			IsLoading = false;
-			DownloadProgress = 0.0;
-			_currentPdfUrl = null;
-			UpdatePdfActionsPanelVisibility();
-			System.Diagnostics.Debug.WriteLine($"Error loading PDF: {ex.Message}");
-		}
-	}
+
 		internal void AddToNavigationHistory(PageData pageData)
 		{
 			System.Diagnostics.Debug.WriteLine($"AddToNavigationHistory: URL={pageData.Url}, Title={pageData.Title}, CurrentIndex={CurrentHistoryIndex}, HistoryCount={NavigationHistory.Count}");
@@ -941,38 +938,6 @@ namespace MarketAlly.Maui.ViewEngine
 		public async Task<string> EvaluateJavaScriptAsync(string script)
 		{
 			return await _webView.EvaluateJavaScriptAsync(script);
-		}
-
-		/// <summary>
-		/// Reload/refresh the current page or PDF
-		/// </summary>
-		/// <param name="bypassCache">If true, forces re-download even if cached</param>
-		public async Task ReloadAsync(bool bypassCache = false)
-		{
-			if (_pdfView.IsVisible && !string.IsNullOrEmpty(_currentPdfUrl))
-			{
-				// Reloading a PDF
-				if (bypassCache && _pdfCache.ContainsKey(_currentPdfUrl))
-				{
-					System.Diagnostics.Debug.WriteLine($"Reload: Clearing cache for {_currentPdfUrl}");
-					_pdfCache.Remove(_currentPdfUrl);
-				}
-				await ShowPdfAsync(_currentPdfUrl);
-			}
-			else if (_webView.Source is UrlWebViewSource urlSource && !string.IsNullOrEmpty(urlSource.Url))
-			{
-				// Reloading a web page
-				if (bypassCache)
-				{
-					// Force WebView to reload from network
-					_webView.Reload();
-				}
-				else
-				{
-					// Regular reload (may use browser cache)
-					_webView.Reload();
-				}
-			}
 		}
 
 		/// <summary>

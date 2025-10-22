@@ -50,7 +50,7 @@ namespace TestApp
 				// Update history stats
 				historyStatsLabel.Text = $"Total: {browserView.NavigationHistory.Count} pages | Current: #{browserView.CurrentHistoryIndex + 1}";
 
-				System.Diagnostics.Debug.WriteLine($"Page loaded: {e.Title} | URL: {e.Url}");
+				System.Diagnostics.Debug.WriteLine($"Page loaded: {e.Title} | URL: {e.Url} | Body: {e.Body}");
 				if (!string.IsNullOrEmpty(e.FaviconUrl))
 				{
 					System.Diagnostics.Debug.WriteLine($"Favicon: {e.FaviconUrl}");
@@ -276,6 +276,11 @@ namespace TestApp
 			browserView.ShowPdfActions = !browserView.ShowPdfActions;
 			var status = browserView.ShowPdfActions ? "enabled" : "disabled";
 			DisplayAlert("Pdf Actions", status, "OK");
+		}
+
+		private async void Button_Clicked(object sender, EventArgs e)
+		{
+			await browserView.ReloadAsync(true);
 		}
 	}
 }

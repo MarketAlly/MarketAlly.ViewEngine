@@ -867,6 +867,87 @@ namespace MarketAlly.Maui.ViewEngine
 
 			await MainThread.InvokeOnMainThreadAsync(() => browserView.DownloadProgress = 0.0);
 
+			// Check cache first using reflection
+			var pdfCacheField = browserView.GetType().GetField("_pdfCache",
+				System.Reflection.BindingFlags.NonPublic | System.Reflection.BindingFlags.Instance);
+			var pdfCache = pdfCacheField?.GetValue(browserView) as System.Collections.Generic.Dictionary<string, (byte[] data, string tempFilePath, string extractedText)>;
+
+			if (pdfCache != null && pdfCache.ContainsKey(url))
+			{
+				System.Diagnostics.Debug.WriteLine($"Android: Using cached PDF for {url}");
+				var cached = pdfCache[url];
+
+				// Set cached data
+				var currentPdfDataField = browserView.GetType().GetField("_currentPdfData",
+					System.Reflection.BindingFlags.NonPublic | System.Reflection.BindingFlags.Instance);
+				currentPdfDataField?.SetValue(browserView, cached.data);
+
+				await MainThread.InvokeOnMainThreadAsync(() => browserView.DownloadProgress = 1.0);
+
+				// Show PDF from cache
+				await MainThread.InvokeOnMainThreadAsync(() =>
+				{
+					var pdfView = browserView.GetType().GetField("_pdfView",
+						System.Reflection.BindingFlags.NonPublic | System.Reflection.BindingFlags.Instance)
+						?.GetValue(browserView) as PdfView;
+					var webView = browserView.GetType().GetField("_webView",
+						System.Reflection.BindingFlags.NonPublic | System.Reflection.BindingFlags.Instance)
+						?.GetValue(browserView) as WebView;
+
+					if (pdfView != null && webView != null)
+					{
+						pdfView.Uri = cached.tempFilePath;
+						webView.IsVisible = false;
+						pdfView.IsVisible = true;
+					}
+
+					// Create PageData from cache
+					var pdfTitle = System.IO.Path.GetFileName(url);
+					if (string.IsNullOrWhiteSpace(pdfTitle))
+					{
+						var uri = new Uri(url);
+						pdfTitle = uri.Segments.Length > 0 ? uri.Segments[uri.Segments.Length - 1] : "PDF Document";
+					}
+
+					var pageData = new PageData
+					{
+						Title = pdfTitle,
+						Body = cached.extractedText,
+						Url = url,
+						MetaDescription = "PDF Document"
+					};
+
+					System.Diagnostics.Debug.WriteLine($"Android: Using cached PDF - Title={pdfTitle}, BodyLength={cached.extractedText.Length}");
+
+					// Check if navigating from history
+					var isNavigatingFromHistoryField = browserView.GetType().GetField("_isNavigatingFromHistory",
+						System.Reflection.BindingFlags.NonPublic | System.Reflection.BindingFlags.Instance);
+					var isNavigatingFromHistory = (bool)(isNavigatingFromHistoryField?.GetValue(browserView) ?? false);
+
+					if (!isNavigatingFromHistory)
+					{
+						browserView.AddToNavigationHistory(pageData);
+					}
+					else
+					{
+						System.Diagnostics.Debug.WriteLine("Android: Cached PDF NOT added to history - navigating from history");
+					}
+
+					// Fire PageDataChanged event
+					browserView.RaisePageDataChanged(pageData);
+
+					// Update PDF actions panel visibility
+					var updatePdfActionsPanelMethod = browserView.GetType().GetMethod("UpdatePdfActionsPanelVisibility",
+						System.Reflection.BindingFlags.NonPublic | System.Reflection.BindingFlags.Instance);
+					updatePdfActionsPanelMethod?.Invoke(browserView, null);
+				});
+
+				browserView.IsLoading = false;
+				return;
+			}
+
+			System.Diagnostics.Debug.WriteLine($"Android: PDF not in cache, downloading from {url}");
+
 			using var httpClient = new HttpClient(new HttpClientHandler
 			{
 				AllowAutoRedirect = true,
@@ -992,6 +1073,13 @@ namespace MarketAlly.Maui.ViewEngine
 					var updatePdfActionsPanelMethod = browserView.GetType().GetMethod("UpdatePdfActionsPanelVisibility",
 						System.Reflection.BindingFlags.NonPublic | System.Reflection.BindingFlags.Instance);
 					updatePdfActionsPanelMethod?.Invoke(browserView, null);
+
+					// Cache the PDF for future navigation
+					if (pdfCache != null)
+					{
+						pdfCache[url] = (pdfData, tempFile, extractedText);
+						System.Diagnostics.Debug.WriteLine($"Android: Cached PDF - {url}");
+					}
 				});
 			}
 

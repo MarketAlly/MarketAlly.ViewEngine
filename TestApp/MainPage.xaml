@@ -376,13 +376,20 @@
         </Grid>
 
         <!-- URL Entry -->
-        <Entry x:Name="urlEntry"
-               Grid.Row="0"
-               Placeholder="Enter URL (e.g., https://example.com or PDF URL)"
-               ReturnType="Go"
-               Keyboard="Url"
-               Completed="urlEntry_Completed"
-               Margin="5" />
+        <Grid ColumnDefinitions="*,auto">
+            <Entry x:Name="urlEntry"
+                   Grid.Row="0"
+                   Placeholder="Enter URL (e.g., https://example.com or PDF URL)"
+                   ReturnType="Go"
+                   Keyboard="Url"
+                   Completed="urlEntry_Completed"
+                   Margin="5" />
+            <Button Text="Refresh" Grid.Column="1"
+                    Clicked="Button_Clicked"
+                    WidthRequest="50"
+                    Padding="5"
+                    TextColor="Black" />
+        </Grid>
 
         <!-- Navigation Bar -->
         <HorizontalStackLayout Grid.Row="1"
