@@ -860,6 +860,13 @@ namespace MarketAlly.Maui.ViewEngine
 		{
 			browserView.IsLoading = true;
 
+			// Set progress and URL using reflection to access private fields
+			var currentPdfUrlField = browserView.GetType().GetField("_currentPdfUrl",
+				System.Reflection.BindingFlags.NonPublic | System.Reflection.BindingFlags.Instance);
+			currentPdfUrlField?.SetValue(browserView, url);
+
+			await MainThread.InvokeOnMainThreadAsync(() => browserView.DownloadProgress = 0.0);
+
 			using var httpClient = new HttpClient(new HttpClientHandler
 			{
 				AllowAutoRedirect = true,
@@ -875,8 +882,34 @@ namespace MarketAlly.Maui.ViewEngine
 			httpClient.DefaultRequestHeaders.Add("User-Agent", "Mozilla/5.0 (Linux; Android 10) AppleWebKit/537.36");
 			httpClient.DefaultRequestHeaders.Add("Accept", "application/pdf,application/octet-stream,*/*");
 
-			// Download WITH cookies
-			var pdfData = await httpClient.GetByteArrayAsync(url);
+			// Download WITH cookies and progress reporting
+			using var response = await httpClient.GetAsync(url, HttpCompletionOption.ResponseHeadersRead);
+			response.EnsureSuccessStatusCode();
+
+			var totalBytes = response.Content.Headers.ContentLength ?? -1;
+			var canReportProgress = totalBytes != -1;
+
+			using var contentStream = await response.Content.ReadAsStreamAsync();
+			using var memoryStream = new System.IO.MemoryStream();
+
+			var buffer = new byte[8192];
+			long totalRead = 0;
+			int bytesRead;
+
+			while ((bytesRead = await contentStream.ReadAsync(buffer, 0, buffer.Length)) > 0)
+			{
+				await memoryStream.WriteAsync(buffer, 0, bytesRead);
+				totalRead += bytesRead;
+
+				if (canReportProgress)
+				{
+					var progress = (double)totalRead / totalBytes;
+					await MainThread.InvokeOnMainThreadAsync(() => browserView.DownloadProgress = progress);
+				}
+			}
+
+			var pdfData = memoryStream.ToArray();
+			await MainThread.InvokeOnMainThreadAsync(() => browserView.DownloadProgress = 1.0);
 
 			System.Diagnostics.Debug.WriteLine($"Android: Downloaded {pdfData?.Length ?? 0} bytes WITH COOKIES");
 
@@ -884,6 +917,11 @@ namespace MarketAlly.Maui.ViewEngine
 			if (pdfData != null && pdfData.Length >= 5 &&
 				pdfData[0] == 0x25 && pdfData[1] == 0x50 && pdfData[2] == 0x44 && pdfData[3] == 0x46)
 			{
+				// Store PDF data using reflection
+				var currentPdfDataField = browserView.GetType().GetField("_currentPdfData",
+					System.Reflection.BindingFlags.NonPublic | System.Reflection.BindingFlags.Instance);
+				currentPdfDataField?.SetValue(browserView, pdfData);
+
 				var tempFile = DataSources.PdfTempFileHelper.CreateTempPdfFilePath();
 				await System.IO.File.WriteAllBytesAsync(tempFile, pdfData);
 
@@ -902,6 +940,51 @@ namespace MarketAlly.Maui.ViewEngine
 						webView.IsVisible = false;
 						pdfView.IsVisible = true;
 					}
+
+					// Add to navigation history - critical for back button functionality
+					var pdfTitle = System.IO.Path.GetFileName(url);
+					if (string.IsNullOrWhiteSpace(pdfTitle))
+					{
+						var uri = new Uri(url);
+						pdfTitle = uri.Segments.Length > 0 ? uri.Segments[uri.Segments.Length - 1] : "PDF Document";
+					}
+
+					var pageData = new PageData
+					{
+						Title = pdfTitle,
+						Body = string.Empty,
+						Url = url,
+						MetaDescription = "PDF Document"
+					};
+
+					System.Diagnostics.Debug.WriteLine($"Android: Adding PDF to history - URL={url}, Title={pdfTitle}");
+
+					// Check if navigating from history
+					var isNavigatingFromHistoryField = browserView.GetType().GetField("_isNavigatingFromHistory",
+						System.Reflection.BindingFlags.NonPublic | System.Reflection.BindingFlags.Instance);
+					var isNavigatingFromHistory = (bool)(isNavigatingFromHistoryField?.GetValue(browserView) ?? false);
+
+					if (!isNavigatingFromHistory)
+					{
+						browserView.AddToNavigationHistory(pageData);
+					}
+					else
+					{
+						System.Diagnostics.Debug.WriteLine("Android: PDF NOT added to history - navigating from history");
+					}
+
+					// Fire PageDataChanged event
+					var pageDataChangedEvent = browserView.GetType().GetEvent("PageDataChanged");
+					var pageDataChangedDelegate = pageDataChangedEvent?.GetRaiseMethod(true);
+					if (pageDataChangedDelegate != null)
+					{
+						pageDataChangedDelegate.Invoke(browserView, new object[] { browserView, pageData });
+					}
+
+					// Update PDF actions panel visibility
+					var updatePdfActionsPanelMethod = browserView.GetType().GetMethod("UpdatePdfActionsPanelVisibility",
+						System.Reflection.BindingFlags.NonPublic | System.Reflection.BindingFlags.Instance);
+					updatePdfActionsPanelMethod?.Invoke(browserView, null);
 				});
 			}
 
@@ -911,6 +994,13 @@ namespace MarketAlly.Maui.ViewEngine
 		{
 			System.Diagnostics.Debug.WriteLine($"DownloadPdfWithCookies failed: {ex.Message}");
 			browserView.IsLoading = false;
+			await MainThread.InvokeOnMainThreadAsync(() =>
+			{
+				browserView.DownloadProgress = 0.0;
+				var currentPdfUrlField = browserView.GetType().GetField("_currentPdfUrl",
+					System.Reflection.BindingFlags.NonPublic | System.Reflection.BindingFlags.Instance);
+				currentPdfUrlField?.SetValue(browserView, null);
+			});
 		}
 	}
 }

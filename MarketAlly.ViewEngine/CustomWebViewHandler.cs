@@ -225,8 +225,9 @@ namespace MarketAlly.Maui.ViewEngine
 			if (string.IsNullOrEmpty(url)) return false;
 
 
-			// Common PDF URL patterns
-			var pdfPatterns = new[]
+			// Use patterns from WebView if available, otherwise use defaults
+			var webView = VirtualView as WebView;
+		var pdfPatterns = webView?.PdfUrlPatterns ?? new[]
 			{
 			@"\.pdf$",                           // Ends with .pdf
             @"arxiv\.org/pdf/\d{4}\.\d{4,5}",   // arXiv PDF pattern

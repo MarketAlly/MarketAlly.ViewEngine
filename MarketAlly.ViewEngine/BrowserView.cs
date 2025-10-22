@@ -25,7 +25,10 @@ namespace MarketAlly.Maui.ViewEngine
 		private readonly Grid _container;
 		private readonly WebView _webView;
 		private readonly PdfView _pdfView;
+		private readonly ProgressBar _downloadProgressBar;
+		private readonly Grid _pdfActionsPanel;
 		private byte[] _currentPdfData;
+		private string _currentPdfUrl;
 		private int _currentHistoryIndex = -1;
 		private bool _isNavigatingFromHistory = false;
 		private bool _isShowingPdf = false;
@@ -92,6 +95,18 @@ namespace MarketAlly.Maui.ViewEngine
 
 		public static readonly BindableProperty EnableZoomProperty =
 			BindableProperty.Create(nameof(EnableZoom), typeof(bool), typeof(BrowserView), true);
+
+		public static readonly BindableProperty ShowPdfActionsProperty =
+			BindableProperty.Create(nameof(ShowPdfActions), typeof(bool), typeof(BrowserView), false);
+
+		public static readonly BindableProperty DownloadProgressProperty =
+			BindableProperty.Create(nameof(DownloadProgress), typeof(double), typeof(BrowserView), 0.0);
+
+		public static readonly BindableProperty ShowLoadingProgressProperty =
+			BindableProperty.Create(nameof(ShowLoadingProgress), typeof(bool), typeof(BrowserView), true);
+
+		public static readonly BindableProperty PdfUrlPatternsProperty =
+			BindableProperty.Create(nameof(PdfUrlPatterns), typeof(string[]), typeof(BrowserView), null);
 
 		#endregion
 
@@ -187,6 +202,34 @@ namespace MarketAlly.Maui.ViewEngine
 			set => SetValue(EnableZoomProperty, value);
 		}
 
+		public bool ShowPdfActions
+		{
+			get => (bool)GetValue(ShowPdfActionsProperty);
+			set => SetValue(ShowPdfActionsProperty, value);
+		}
+
+		public double DownloadProgress
+		{
+			get => (double)GetValue(DownloadProgressProperty);
+			set => SetValue(DownloadProgressProperty, value);
+		}
+
+		public bool ShowLoadingProgress
+		{
+			get => (bool)GetValue(ShowLoadingProgressProperty);
+			set => SetValue(ShowLoadingProgressProperty, value);
+		}
+
+		/// <summary>
+		/// Regular expression patterns used to detect PDF URLs.
+		/// If null, uses default patterns. Customize for specific needs.
+		/// </summary>
+		public string[] PdfUrlPatterns
+		{
+			get => (string[])GetValue(PdfUrlPatternsProperty);
+			set => SetValue(PdfUrlPatternsProperty, value);
+		}
+
 		/// <summary>
 		/// Observable collection of navigation history with titles
 		/// </summary>
@@ -217,14 +260,79 @@ namespace MarketAlly.Maui.ViewEngine
 
 		public BrowserView()
 		{
-			_container = new Grid();
+			// Set default PDF URL patterns
+			PdfUrlPatterns = new[]
+			{
+				@"\.pdf$",                           // Ends with .pdf
+				@"arxiv\.org/pdf/\d{4}\.\d{4,5}",   // arXiv PDF pattern
+				@"/pdf/",                            // Contains /pdf/ in path
+				@"content-type=pdf",                 // Query parameter indicating PDF
+				@"type=pdf",                         // Alternative query parameter
+				@"format=pdf"                        // Another common parameter
+			};
+
+			// Setup grid with rows: main content and actions panel
+			// Progress bar will overlay at the top
+			_container = new Grid
+			{
+				RowDefinitions =
+				{
+					new RowDefinition { Height = new GridLength(1, GridUnitType.Star) }, // Main content
+					new RowDefinition { Height = GridLength.Auto }  // Actions panel
+				}
+			};
+
 			_webView = new WebView();
-		_webView.ParentBrowserView = this;
+			_webView.ParentBrowserView = this;
 			_pdfView = new PdfView();
 
-			// Setup grid
+			// Create thin progress bar at top (modern browser style)
+			_downloadProgressBar = new ProgressBar
+			{
+				IsVisible = false,
+				HeightRequest = 3,
+				ProgressColor = Microsoft.Maui.Graphics.Colors.Blue,
+				VerticalOptions = LayoutOptions.Start,
+				HorizontalOptions = LayoutOptions.Fill
+			};
+
+			// Create PDF actions panel with download button
+			_pdfActionsPanel = new Grid
+			{
+				IsVisible = false,
+				Padding = new Thickness(10),
+				BackgroundColor = Microsoft.Maui.Graphics.Colors.LightGray,
+				ColumnDefinitions =
+				{
+					new ColumnDefinition { Width = new GridLength(1, GridUnitType.Star) },
+					new ColumnDefinition { Width = GridLength.Auto }
+				}
+			};
+
+			var downloadButton = new Button
+			{
+				Text = "Download",
+				Command = new Command(async () => await DownloadCurrentPdfAsync()),
+				Margin = new Thickness(5, 0)
+			};
+			Grid.SetColumn(downloadButton, 1);
+
+			_pdfActionsPanel.Children.Add(downloadButton);
+
+			// Add views to grid
+			// WebView and PdfView occupy row 0
+			Grid.SetRow(_webView, 0);
+			Grid.SetRow(_pdfView, 0);
+			Grid.SetRow(_pdfActionsPanel, 1);
+
 			_container.Children.Add(_webView);
 			_container.Children.Add(_pdfView);
+			_container.Children.Add(_pdfActionsPanel);
+
+			// Progress bar overlays at top of row 0 (spans all rows for z-index)
+			Grid.SetRow(_downloadProgressBar, 0);
+			Grid.SetRowSpan(_downloadProgressBar, 2);
+			_container.Children.Add(_downloadProgressBar);
 
 			// Initially show WebView
 			_webView.IsVisible = true;
@@ -289,7 +397,57 @@ namespace MarketAlly.Maui.ViewEngine
 					_webView.EnableZoom = EnableZoom;
 					_pdfView.MaxZoom = EnableZoom ? 4.0f : 1.0f;
 					break;
+				case nameof(DownloadProgress):
+					UpdateProgressBarVisibility();
+					break;
+				case nameof(ShowPdfActions):
+					UpdatePdfActionsPanelVisibility();
+					break;
+				case nameof(ShowLoadingProgress):
+					UpdateProgressBarVisibility();
+					break;
+				case nameof(IsLoading):
+					UpdateProgressBarVisibility();
+					break;
+				case nameof(PdfUrlPatterns):
+					_webView.PdfUrlPatterns = PdfUrlPatterns;
+					break;
 			}
+		}
+
+		private void UpdateProgressBarVisibility()
+		{
+			if (!ShowLoadingProgress)
+			{
+				_downloadProgressBar.IsVisible = false;
+				return;
+			}
+
+			// Show progress bar when:
+			// 1. Downloading a PDF (DownloadProgress between 0 and 1)
+			// 2. OR loading a regular page (IsLoading = true)
+			bool isDownloadingPdf = DownloadProgress > 0 && DownloadProgress < 1.0;
+			bool isLoadingPage = IsLoading && DownloadProgress == 0;
+
+			_downloadProgressBar.IsVisible = isDownloadingPdf || isLoadingPage;
+
+			// Update progress: use DownloadProgress for PDFs, show indeterminate for page loads
+			if (isDownloadingPdf)
+			{
+				_downloadProgressBar.Progress = DownloadProgress;
+			}
+			else if (isLoadingPage)
+			{
+				// For regular page loads, show indeterminate progress (pulse animation)
+				// MAUI ProgressBar doesn't have built-in indeterminate mode, so we'll show 0.5
+				_downloadProgressBar.Progress = 0.5;
+			}
+		}
+
+		private void UpdatePdfActionsPanelVisibility()
+		{
+			// Show panel only when ShowPdfActions is true AND we have a PDF loaded
+			_pdfActionsPanel.IsVisible = ShowPdfActions && _pdfView.IsVisible && !string.IsNullOrEmpty(_currentPdfUrl);
 		}
 
 		private void OnWebViewPropertyChanged(object sender, System.ComponentModel.PropertyChangedEventArgs e)
@@ -323,6 +481,8 @@ namespace MarketAlly.Maui.ViewEngine
 		_webView.IsVisible = true;
 		_pdfView.IsVisible = false;
 		_currentPdfData = null;
+		_currentPdfUrl = null;
+		UpdatePdfActionsPanelVisibility();
 
 		// Add to navigation history (only if not navigating from history)
 		if (!_isNavigatingFromHistory && !string.IsNullOrEmpty(pageData.Url) && !string.IsNullOrEmpty(pageData.Title))
@@ -345,8 +505,10 @@ namespace MarketAlly.Maui.ViewEngine
 			try
 			{
 				IsLoading = true;
+				DownloadProgress = 0.0;
+				_currentPdfUrl = url;
 
-				// Download PDF with proper headers
+				// Download PDF with proper headers and progress reporting
 				using var httpClient = new HttpClient(new HttpClientHandler
 				{
 					AllowAutoRedirect = true,
@@ -355,7 +517,33 @@ namespace MarketAlly.Maui.ViewEngine
 				httpClient.DefaultRequestHeaders.Add("User-Agent", "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36");
 				httpClient.DefaultRequestHeaders.Add("Accept", "application/pdf,application/octet-stream,*/*");
 
-				_currentPdfData = await httpClient.GetByteArrayAsync(url);
+				// Get response to read content length
+				using var response = await httpClient.GetAsync(url, HttpCompletionOption.ResponseHeadersRead);
+				response.EnsureSuccessStatusCode();
+
+				var totalBytes = response.Content.Headers.ContentLength ?? -1;
+				var canReportProgress = totalBytes != -1;
+
+				using var contentStream = await response.Content.ReadAsStreamAsync();
+				using var memoryStream = new System.IO.MemoryStream();
+
+				var buffer = new byte[8192];
+				long totalRead = 0;
+				int bytesRead;
+
+				while ((bytesRead = await contentStream.ReadAsync(buffer, 0, buffer.Length)) > 0)
+				{
+					await memoryStream.WriteAsync(buffer, 0, bytesRead);
+					totalRead += bytesRead;
+
+					if (canReportProgress)
+					{
+						DownloadProgress = (double)totalRead / totalBytes;
+					}
+				}
+
+				_currentPdfData = memoryStream.ToArray();
+				DownloadProgress = 1.0;
 
 				System.Diagnostics.Debug.WriteLine($"Downloaded {_currentPdfData?.Length ?? 0} bytes from {url}");
 				if (_currentPdfData != null && _currentPdfData.Length >= 20)
@@ -375,6 +563,9 @@ namespace MarketAlly.Maui.ViewEngine
 				_webView.IsVisible = true;
 				_pdfView.IsVisible = false;
 					IsLoading = false;
+					DownloadProgress = 0.0;
+					_currentPdfUrl = null;
+					UpdatePdfActionsPanelVisibility();
 					return;
 				}
 
@@ -388,6 +579,7 @@ namespace MarketAlly.Maui.ViewEngine
 				_pdfView.Uri = tempFile;
 				_webView.IsVisible = false;
 				_pdfView.IsVisible = true;
+				UpdatePdfActionsPanelVisibility();
 
 				// Extract text for PageData (best effort - ignore errors)
 				string extractedText = string.Empty;
@@ -440,11 +632,14 @@ namespace MarketAlly.Maui.ViewEngine
 			catch (Exception ex)
 			{
 				IsLoading = false;
+				DownloadProgress = 0.0;
+				_currentPdfUrl = null;
+				UpdatePdfActionsPanelVisibility();
 				System.Diagnostics.Debug.WriteLine($"Error loading PDF: {ex.Message}");
 			}
 		}
 
-		private void AddToNavigationHistory(PageData pageData)
+		internal void AddToNavigationHistory(PageData pageData)
 		{
 			System.Diagnostics.Debug.WriteLine($"AddToNavigationHistory: URL={pageData.Url}, Title={pageData.Title}, CurrentIndex={CurrentHistoryIndex}, HistoryCount={NavigationHistory.Count}");
 
@@ -720,6 +915,51 @@ namespace MarketAlly.Maui.ViewEngine
 		public async Task<string> EvaluateJavaScriptAsync(string script)
 		{
 			return await _webView.EvaluateJavaScriptAsync(script);
+		}
+
+		/// <summary>
+		/// Download/share the currently displayed PDF using the system share dialog
+		/// </summary>
+		public async Task DownloadCurrentPdfAsync()
+		{
+			if (_currentPdfData == null || string.IsNullOrEmpty(_currentPdfUrl))
+			{
+				System.Diagnostics.Debug.WriteLine("No PDF currently loaded to download");
+				return;
+			}
+
+			try
+			{
+				// Get filename from URL
+				var fileName = System.IO.Path.GetFileName(_currentPdfUrl);
+				if (string.IsNullOrWhiteSpace(fileName) || !fileName.EndsWith(".pdf", StringComparison.OrdinalIgnoreCase))
+				{
+					// Extract from URL or use default
+					var uri = new Uri(_currentPdfUrl);
+					fileName = uri.Segments.Length > 0 ? uri.Segments[^1] : "document.pdf";
+					if (!fileName.EndsWith(".pdf", StringComparison.OrdinalIgnoreCase))
+					{
+						fileName += ".pdf";
+					}
+				}
+
+				// Save to temp file for sharing
+				var tempFilePath = System.IO.Path.Combine(FileSystem.CacheDirectory, fileName);
+				await File.WriteAllBytesAsync(tempFilePath, _currentPdfData);
+
+				// Use MAUI Essentials Share API
+				await Share.Default.RequestAsync(new ShareFileRequest
+				{
+					Title = "Download PDF",
+					File = new ShareFile(tempFilePath)
+				});
+
+				System.Diagnostics.Debug.WriteLine($"PDF shared successfully: {fileName}");
+			}
+			catch (Exception ex)
+			{
+				System.Diagnostics.Debug.WriteLine($"Error downloading PDF: {ex.Message}");
+			}
 		}
 
 		#endregion

@@ -5,6 +5,7 @@
              x:Class="TestApp.MainPage">
 
     <ContentPage.ToolbarItems>
+        <ToolbarItem Text="DL" Clicked="ToolbarItem_Clicked" />
         <ToolbarItem Text="History" Clicked="ShowHistory_Clicked" />
         <ToolbarItem Text="Refresh" Clicked="RefreshData_Clicked" />
         <ToolbarItem Text="Links" Clicked="ShowLinks_Clicked" />

@@ -270,5 +270,12 @@ namespace TestApp
 		}
 
 		#endregion
+
+		private void ToolbarItem_Clicked(object sender, EventArgs e)
+		{
+			browserView.ShowPdfActions = !browserView.ShowPdfActions;
+			var status = browserView.ShowPdfActions ? "enabled" : "disabled";
+			DisplayAlert("Pdf Actions", status, "OK");
+		}
 	}
 }

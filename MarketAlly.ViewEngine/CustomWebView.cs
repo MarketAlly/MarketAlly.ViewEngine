@@ -83,6 +83,9 @@ namespace MarketAlly.Maui.ViewEngine
 		public static readonly BindableProperty EnableZoomProperty =
 			BindableProperty.Create(nameof(EnableZoom), typeof(bool), typeof(WebView), true);
 
+		public static readonly BindableProperty PdfUrlPatternsProperty =
+			BindableProperty.Create(nameof(PdfUrlPatterns), typeof(string[]), typeof(WebView), null);
+
 		public WebView()
 		{
 			// Use both Loaded and HandlerChanged for maximum compatibility
@@ -373,6 +376,12 @@ namespace MarketAlly.Maui.ViewEngine
 		{
 			get => (bool)GetValue(EnableZoomProperty);
 			set => SetValue(EnableZoomProperty, value);
+		}
+
+		public string[] PdfUrlPatterns
+		{
+			get => (string[])GetValue(PdfUrlPatternsProperty);
+			set => SetValue(PdfUrlPatternsProperty, value);
 		}
 
 		/// <summary>
