@@ -27,7 +27,8 @@ namespace MarketAlly.Maui.ViewEngine
 			Mapper = new PropertyMapper<WebView, WebViewHandler>(Microsoft.Maui.Handlers.WebViewHandler.Mapper)
 			{
 				[nameof(WebView.UserAgent)] = MapUserAgent,
-				[nameof(WebView.Source)] = MapSource
+				[nameof(WebView.Source)] = MapSource,
+				[nameof(WebView.EnableZoom)] = MapEnableZoom
 			};
 		}
 
@@ -58,7 +59,13 @@ namespace MarketAlly.Maui.ViewEngine
 			handler.EnsureCustomWebViewClient();
 		}
 
+		public static void MapEnableZoom(WebViewHandler handler, WebView view)
+		{
+			handler.SetEnableZoom(view.EnableZoom);
+		}
+
 		public partial void EnsureCustomWebViewClient();
+		public partial void SetEnableZoom(bool enable);
 
 		/// <summary>
 		/// Extracts key webpage details (title, body text, metadata) from the currently loaded WebView.
@@ -246,76 +253,31 @@ namespace MarketAlly.Maui.ViewEngine
 			if (string.IsNullOrEmpty(url))
 				return false;
 
-			int retryCount = 0;
-			const int maxRetries = 3;
+			// Primary check: Trust URL patterns for common PDF URLs
+			// This is fast, reliable, and works for most cases including academic sites
+			// that may redirect or return incorrect Content-Type headers
+			if (IsPotentialPdfUrl(url))
+				return true;
 
-			while (retryCount < maxRetries)
+			// Secondary check: For non-standard URLs, try HTTP HEAD request
+			// This handles edge cases where PDFs are served with unusual URLs
+			try
 			{
-				try
-				{
-					// Only get headers, don't download content yet
-					using var request = new HttpRequestMessage(HttpMethod.Head, url);
-					using var cts = new CancellationTokenSource(TimeSpan.FromSeconds(10));
-					using var response = await _httpClient.SendAsync(request, cts.Token);
+				using var request = new HttpRequestMessage(HttpMethod.Head, url);
+				using var cts = new CancellationTokenSource(TimeSpan.FromSeconds(5));
+				using var response = await _httpClient.SendAsync(request, cts.Token);
 
-					var contentType = response.Content.Headers.ContentType?.MediaType;
-					return contentType?.Contains("pdf", StringComparison.OrdinalIgnoreCase) == true ||
-						   contentType?.Contains("application/octet-stream", StringComparison.OrdinalIgnoreCase) == true;
-				}
-				catch (Exception ex) when (retryCount < maxRetries - 1)
-				{
-					retryCount++;
-					await Task.Delay(TimeSpan.FromSeconds(Math.Pow(2, retryCount))); // Exponential backoff
-				}
-				catch (Exception ex)
-				{
-					// If we can't check content type, fall back to URL pattern
-					return IsPotentialPdfUrl(url);
-				}
+				var contentType = response.Content.Headers.ContentType?.MediaType;
+				return contentType?.Contains("pdf", StringComparison.OrdinalIgnoreCase) == true ||
+					   contentType?.Contains("application/octet-stream", StringComparison.OrdinalIgnoreCase) == true;
 			}
-
-			return IsPotentialPdfUrl(url);
-		}
-
-		public async Task HandlePotentialPdfUrl(string url)
-		{
-			if (string.IsNullOrEmpty(url))
-				return;
-
-			if (!await ConfirmPdfContent(url))
-				return;
-
-			int retryCount = 0;
-			const int maxRetries = 3;
-
-			while (retryCount < maxRetries)
+			catch
 			{
-				try
-				{
-					using var cts = new CancellationTokenSource(TimeSpan.FromSeconds(60));
-					var pdfData = await _httpClient.GetByteArrayAsync(url, cts.Token);
-					await HandlePdfDownload(pdfData, url);
-					return; // Success
-				}
-				catch (Exception ex) when (retryCount < maxRetries - 1)
-				{
-					retryCount++;
-					await Task.Delay(TimeSpan.FromSeconds(Math.Pow(2, retryCount))); // Exponential backoff
-				}
-				catch (Exception ex)
-				{
-					// Notify user of failure
-					var failureData = new PageData
-					{
-						Title = "PDF Download Failed",
-						Body = $"Failed to download PDF from {url} after {maxRetries} attempts: {ex.Message}",
-						Url = url
-					};
-					PageDataChanged?.Invoke(this, failureData);
-					return;
-				}
+				// If HTTP HEAD fails, assume it's not a PDF
+				return false;
 			}
 		}
+
 	}
 
 	/// <summary>
@@ -327,6 +289,7 @@ namespace MarketAlly.Maui.ViewEngine
 		public string Body { get; set; }
 		public string MetaDescription { get; set; }
 		public string Url { get; set; }
+		public string FaviconUrl { get; set; }
 		public List<RouteInfo> Routes { get; set; } = new List<RouteInfo>();
 		public List<RouteInfo> BodyRoutes { get; set; } = new List<RouteInfo>();
 
@@ -355,6 +318,7 @@ namespace MarketAlly.Maui.ViewEngine
 		public string Title { get; set; }
 		public string Body { get; set; }
 		public string Url { get; set; }
+		public string FaviconUrl { get; set; }
 		public List<LinkData> Links { get; set; }
 		public List<LinkData> BodyLinks { get; set; }
 	}
@@ -614,10 +578,55 @@ namespace MarketAlly.Maui.ViewEngine
                     }
                 });
 
+                // Extract favicon
+                let faviconUrl = '';
+                let linkElements = document.querySelectorAll('link[rel*=""icon""]');
+                if (linkElements.length > 0) {
+                    // Prefer apple-touch-icon or icon with largest size
+                    let bestIcon = null;
+                    let maxSize = 0;
+
+                    linkElements.forEach(function(link) {
+                        let rel = link.getAttribute('rel').toLowerCase();
+                        let sizes = link.getAttribute('sizes');
+
+                        if (rel.includes('apple-touch-icon')) {
+                            bestIcon = link;
+                            return;
+                        }
+
+                        if (sizes) {
+                            let match = sizes.match(/(\d+)x(\d+)/);
+                            if (match) {
+                                let size = parseInt(match[1]);
+                                if (size > maxSize) {
+                                    maxSize = size;
+                                    bestIcon = link;
+                                }
+                            }
+                        } else if (!bestIcon) {
+                            bestIcon = link;
+                        }
+                    });
+
+                    if (bestIcon) {
+                        faviconUrl = bestIcon.href;
+                    }
+                } else {
+                    // Default favicon.ico
+                    try {
+                        let url = new URL(window.location.href);
+                        faviconUrl = url.origin + '/favicon.ico';
+                    } catch (e) {
+                        faviconUrl = '';
+                    }
+                }
+
                 let pageData = {
                     title: sanitizeString(document.title || ''),
                     body: toBase64(bodyText),
                     url: window.location.href,
+                    faviconUrl: faviconUrl,
                     links: links,
                     bodyLinks: bodyLinks
                 };

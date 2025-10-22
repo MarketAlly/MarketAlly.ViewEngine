@@ -31,7 +31,8 @@
 		{
 			try
 			{
-				var window = new Window(new MainPage());
+				// Wrap MainPage in NavigationPage to show toolbar items on Windows
+				var window = new Window(new NavigationPage(new MainPage()));
 				return window;
 			}
 			catch (Exception ex)

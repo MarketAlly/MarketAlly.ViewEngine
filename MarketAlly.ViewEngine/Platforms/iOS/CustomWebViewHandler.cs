@@ -338,7 +338,7 @@ namespace MarketAlly.Maui.ViewEngine
 					// Process PDF in parallel
 					MainThread.BeginInvokeOnMainThread(async () =>
 					{
-						await _handler.HandlePotentialPdfUrl(url);
+						// PDF handling is now done by BrowserView.ShowPdfAsync
 					});
 					return;
 				}
@@ -359,6 +359,28 @@ namespace MarketAlly.Maui.ViewEngine
 		{
 			PlatformView.CustomUserAgent = !string.IsNullOrEmpty(userAgent) ? userAgent :
 				"Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36";
+		}
+
+		public partial void SetEnableZoom(bool enable)
+		{
+			if (PlatformView is WKWebView webView)
+			{
+				var config = webView.Configuration;
+				if (enable)
+				{
+					// Enable zoom
+					config.Preferences.MinimumFontSize = 0;
+					// Remove viewport meta tag restrictions via JavaScript
+					var script = "var meta = document.querySelector('meta[name=viewport]'); if(meta) { meta.content = 'width=device-width, initial-scale=1.0, user-scalable=yes'; }";
+					webView.EvaluateJavaScriptAsync(script);
+				}
+				else
+				{
+					// Disable zoom via viewport meta tag
+					var script = "var meta = document.querySelector('meta[name=viewport]'); if(meta) { meta.content = 'width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no'; }";
+					webView.EvaluateJavaScriptAsync(script);
+				}
+			}
 		}
 
 		public async partial Task<PageData> ExtractPageDataAsync(bool forceRouteExtraction = false)

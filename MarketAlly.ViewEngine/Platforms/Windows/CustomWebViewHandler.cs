@@ -354,11 +354,8 @@ namespace MarketAlly.Maui.ViewEngine
 				{
 					var url = args?.Uri;
 
-					if (!string.IsNullOrEmpty(url) && IsPotentialPdfUrl(url))
-					{
-						// Don't cancel navigation, just process PDF in parallel
-						_ = Task.Run(async () => await HandlePotentialPdfUrl(url));
-					}
+					// PDF handling is now done by BrowserView.ShowPdfAsync
+					// No need for legacy HandlePotentialPdfUrl call here
 				};
 				platformView.CoreWebView2.NavigationStarting += _navigationStartingHandler;
 
@@ -469,20 +466,17 @@ namespace MarketAlly.Maui.ViewEngine
 		{
 			var url = args.DownloadOperation.Uri;
 
-			if (IsPotentialPdfUrl(url))
-			{
-				args.Handled = true;
-				await HandlePotentialPdfUrl(url);
-			}
-			else if (args.ResultFilePath.EndsWith(".pdf", StringComparison.OrdinalIgnoreCase))
-			{
-				args.Handled = true;
-				await HandlePotentialPdfUrl(url);
-			}
-			else
+			// PDF handling is now done by BrowserView.ShowPdfAsync
+			// For non-PDF downloads, open with default application
+			if (!IsPotentialPdfUrl(url) && !args.ResultFilePath.EndsWith(".pdf", StringComparison.OrdinalIgnoreCase))
 			{
 				Process.Start(new ProcessStartInfo(args.ResultFilePath) { UseShellExecute = true });
 				args.Cancel = false;
+			}
+			else
+			{
+				// Cancel the download - BrowserView will handle PDF display
+				args.Handled = true;
 			}
 		}
 
@@ -527,6 +521,22 @@ namespace MarketAlly.Maui.ViewEngine
 			}
 			catch (Exception ex)
 			{
+			}
+		}
+
+		public partial void SetEnableZoom(bool enable)
+		{
+			try
+			{
+				if (PlatformView?.CoreWebView2?.Settings != null)
+				{
+					PlatformView.CoreWebView2.Settings.IsPinchZoomEnabled = enable;
+					PlatformView.CoreWebView2.Settings.IsZoomControlEnabled = enable;
+				}
+			}
+			catch (Exception ex)
+			{
+				System.Diagnostics.Debug.WriteLine($"Error setting zoom: {ex.Message}");
 			}
 		}
 
@@ -650,50 +660,9 @@ namespace MarketAlly.Maui.ViewEngine
 						stream.AsRandomAccessStream());
 				}
 
-				// Load the captured image and resize it
-				using (var fileStream = System.IO.File.OpenRead(tempPath))
-				{
-					// Load image using MAUI Graphics
-					var image = Microsoft.Maui.Graphics.Platform.PlatformImage.FromStream(fileStream);
-
-					if (image == null)
-					{
-						System.IO.File.Delete(tempPath);
-						return null;
-					}
-
-					// Calculate aspect-preserving dimensions
-					float aspectRatio = image.Width / (float)image.Height;
-					int targetWidth = width;
-					int targetHeight = height;
-
-					if (aspectRatio > (width / (float)height))
-					{
-						// Image is wider - fit to width
-						targetHeight = (int)(width / aspectRatio);
-					}
-					else
-					{
-						// Image is taller - fit to height
-						targetWidth = (int)(height * aspectRatio);
-					}
-
-					// Resize the image
-					var resized = image.Resize(targetWidth, targetHeight, Microsoft.Maui.Graphics.ResizeMode.Fit);
-
-					// Save resized image to a new temp file
-					var resizedPath = Path.Combine(Path.GetTempPath(), $"webview_thumbnail_resized_{Guid.NewGuid()}.png");
-					using (var outputStream = System.IO.File.Create(resizedPath))
-					{
-						resized.Save(outputStream);
-					}
-
-					// Clean up original temp file
-					System.IO.File.Delete(tempPath);
-
-					// Return as ImageSource
-					return Microsoft.Maui.Controls.ImageSource.FromFile(resizedPath);
-				}
+				// Note: Image resizing is not implemented on Windows platform
+				// Return the full-size screenshot - the Image control will handle scaling
+				return Microsoft.Maui.Controls.ImageSource.FromFile(tempPath);
 			}
 			catch (Exception ex)
 			{

@@ -5,7 +5,6 @@ namespace TestApp
 {
 	public partial class MainPage : ContentPage
 	{
-		private bool _isSidebarVisible = false;
 		private PageData _currentPageData;
 		private bool _showingBodyLinksOnly = false;
 		private DateTime _lastThumbnailCapture = DateTime.MinValue;
@@ -17,7 +16,10 @@ namespace TestApp
 				System.Diagnostics.Debug.WriteLine("MainPage: Constructor starting");
 				InitializeComponent();
 				System.Diagnostics.Debug.WriteLine("MainPage: InitializeComponent completed");
-				UpdateSidebarVisibility();
+
+				// Bind history to the CollectionView
+				historyCollectionView.ItemsSource = browserView.NavigationHistory;
+
 				System.Diagnostics.Debug.WriteLine("MainPage: Constructor completed successfully");
 			}
 			catch (Exception ex)
@@ -32,51 +34,79 @@ namespace TestApp
 		{
 			if (!string.IsNullOrWhiteSpace(urlEntry.Text))
 			{
-				// The WebView control will automatically normalize the URL
-				webView.Source = urlEntry.Text;
+				// The BrowserView control will automatically normalize the URL and handle PDFs
+				browserView.Source = new UrlWebViewSource { Url = urlEntry.Text };
 			}
 		}
 
-		private void webView_PageDataChanged(object sender, PageData e)
+		private void BrowserView_PageDataChanged(object sender, PageData e)
 		{
 			MainThread.BeginInvokeOnMainThread(() =>
 			{
 				_currentPageData = e;
-				titleEntry.Text = e.Title;
-				bodyEntry.Text = e.Body;
+				pageTitle.Text = e.Title ?? "Untitled";
+				urlEntry.Text = e.Url;
+
+				// Update history stats
+				historyStatsLabel.Text = $"Total: {browserView.NavigationHistory.Count} pages | Current: #{browserView.CurrentHistoryIndex + 1}";
+
+				System.Diagnostics.Debug.WriteLine($"Page loaded: {e.Title} | URL: {e.Url}");
+				if (!string.IsNullOrEmpty(e.FaviconUrl))
+				{
+					System.Diagnostics.Debug.WriteLine($"Favicon: {e.FaviconUrl}");
+				}
 			});
 		}
 
-		private void ToggleSidebar_Clicked(object sender, EventArgs e)
+		#region Navigation History
+
+		private void ShowHistory_Clicked(object sender, EventArgs e)
 		{
-			_isSidebarVisible = !_isSidebarVisible;
-			UpdateSidebarVisibility();
+			historyStatsLabel.Text = $"Total: {browserView.NavigationHistory.Count} pages | Current: #{browserView.CurrentHistoryIndex + 1}";
+			historyOverlay.IsVisible = true;
 		}
 
-		private void UpdateSidebarVisibility()
+		private void HideHistory_Clicked(object sender, EventArgs e)
 		{
-			if (_isSidebarVisible)
+			historyOverlay.IsVisible = false;
+		}
+
+		private async void HistoryItemSelected(object sender, SelectionChangedEventArgs e)
+		{
+			if (e.CurrentSelection.FirstOrDefault() is NavigationHistoryItem historyItem)
 			{
-				sidePanel.IsVisible = true;
-				sideColumn.Width = new GridLength(300);
-			}
-			else
-			{
-				sidePanel.IsVisible = false;
-				sideColumn.Width = new GridLength(0);
+				var index = browserView.NavigationHistory.IndexOf(historyItem);
+				await browserView.NavigateToHistoryItemAsync(index);
+				historyOverlay.IsVisible = false;
+
+				// Clear selection
+				historyCollectionView.SelectedItem = null;
 			}
 		}
+
+		private async void GoBack_Clicked(object sender, EventArgs e)
+		{
+			await browserView.GoBackInHistoryAsync();
+		}
+
+		private async void GoForward_Clicked(object sender, EventArgs e)
+		{
+			await browserView.GoForwardInHistoryAsync();
+		}
+
+		#endregion
+
+		#region Links Display
 
 		private async void RefreshData_Clicked(object sender, EventArgs e)
 		{
 			try
 			{
-				var pageData = await webView.GetPageDataAsync();
+				var pageData = await browserView.GetPageDataAsync();
 				if (pageData != null)
 				{
 					_currentPageData = pageData;
-					titleEntry.Text = pageData.Title;
-					bodyEntry.Text = pageData.Body;
+					pageTitle.Text = pageData.Title;
 				}
 			}
 			catch (Exception ex)
@@ -85,10 +115,20 @@ namespace TestApp
 			}
 		}
 
-		private void ShowLinks_Clicked(object sender, EventArgs e)
+		private async void ShowLinks_Clicked(object sender, EventArgs e)
 		{
-			_showingBodyLinksOnly = false;
-			DisplayLinksCollection();
+			// Extract routes on-demand
+			try
+			{
+				var pageData = await browserView.ExtractRoutesAsync();
+				_currentPageData = pageData;
+				_showingBodyLinksOnly = false;
+				DisplayLinksCollection();
+			}
+			catch (Exception ex)
+			{
+				await DisplayAlert("Error", $"Failed to extract links: {ex.Message}", "OK");
+			}
 		}
 
 		private void ShowAllLinks_Clicked(object sender, EventArgs e)
@@ -180,7 +220,7 @@ namespace TestApp
 				if (!string.IsNullOrEmpty(url))
 				{
 					// Navigate to the selected link
-					webView.Source = url;
+					browserView.Source = new UrlWebViewSource { Url = url };
 					linksOverlay.IsVisible = false;
 				}
 
@@ -188,6 +228,10 @@ namespace TestApp
 				linksCollectionView.SelectedItem = null;
 			}
 		}
+
+		#endregion
+
+		#region Thumbnail
 
 		private async void CaptureThumbnail_Clicked(object sender, EventArgs e)
 		{
@@ -199,7 +243,7 @@ namespace TestApp
 				thumbnailOverlay.IsVisible = true;
 
 				// Capture the thumbnail
-				var thumbnail = await webView.CaptureThumbnailAsync(640, 360);
+				var thumbnail = await browserView.CaptureThumbnailAsync(640, 360);
 
 				if (thumbnail != null)
 				{
@@ -224,6 +268,7 @@ namespace TestApp
 		{
 			thumbnailOverlay.IsVisible = false;
 		}
-	}
 
+		#endregion
+	}
 }

@@ -28,6 +28,7 @@ namespace MarketAlly.Maui.ViewEngine
 	{
 		// Expose PageDataChanged event at the WebView level
 		public event EventHandler<PageData> PageDataChanged;
+		internal BrowserView ParentBrowserView { get; set; }
 
 		// Event that fires when page is fully loaded and processed
 		public event EventHandler<EventArgs> PageLoadComplete;
@@ -78,6 +79,9 @@ namespace MarketAlly.Maui.ViewEngine
 
 		public static readonly BindableProperty EnableThumbnailCaptureProperty =
 			BindableProperty.Create(nameof(EnableThumbnailCapture), typeof(bool), typeof(WebView), false);
+
+		public static readonly BindableProperty EnableZoomProperty =
+			BindableProperty.Create(nameof(EnableZoom), typeof(bool), typeof(WebView), true);
 
 		public WebView()
 		{
@@ -213,7 +217,15 @@ namespace MarketAlly.Maui.ViewEngine
 		private void OnPageDataChanged(object sender, PageData pageData)
 		{
 			// Auto-detection: check if URL hasn't changed (possible click without navigation)
-			if (AutoDetectNavigationIssues && !string.IsNullOrEmpty(pageData.Url))
+			// Skip auto-detection for PDF URLs since they don't have clickable links
+			bool isPdfUrl = false;
+			if (Handler is WebViewHandler handler && !string.IsNullOrEmpty(pageData.Url))
+			{
+				isPdfUrl = handler.IsPotentialPdfUrl(pageData.Url) ||
+				           pageData.MetaDescription == "PDF Document";
+			}
+
+			if (AutoDetectNavigationIssues && !string.IsNullOrEmpty(pageData.Url) && !isPdfUrl)
 			{
 				if (pageData.Url == _lastUrl)
 				{
@@ -233,6 +245,11 @@ namespace MarketAlly.Maui.ViewEngine
 					_clicksWithoutNavigation = 0;
 					_lastUrl = pageData.Url;
 				}
+			}
+			else if (isPdfUrl)
+			{
+				// For PDFs, just update the last URL without incrementing counter
+				_lastUrl = pageData.Url;
 			}
 
 			// Set IsLoading to false since page data extraction is complete
@@ -346,6 +363,16 @@ namespace MarketAlly.Maui.ViewEngine
 		{
 			get => (bool)GetValue(IsLoadingProperty);
 			set => SetValue(IsLoadingProperty, value);
+		}
+
+		/// <summary>
+		/// When true (default), enables pinch-to-zoom and zoom controls in the WebView.
+		/// When false, disables all zoom functionality.
+		/// </summary>
+		public bool EnableZoom
+		{
+			get => (bool)GetValue(EnableZoomProperty);
+			set => SetValue(EnableZoomProperty, value);
 		}
 
 		/// <summary>
@@ -492,6 +519,45 @@ namespace MarketAlly.Maui.ViewEngine
 			}
 
 			return null;
+		}
+
+		/// <summary>
+		/// Scrolls the webpage to the top.
+		/// </summary>
+		public async Task ScrollToTopAsync()
+		{
+			// Wait for handler to be attached if it's not ready yet
+			if (Handler == null)
+			{
+				// Try waiting for handler attachment (common when control is nested)
+				var tcs = new TaskCompletionSource<bool>();
+				EventHandler handlerChanged = null;
+
+				handlerChanged = (s, e) =>
+				{
+					if (Handler != null)
+					{
+						HandlerChanged -= handlerChanged;
+						tcs.TrySetResult(true);
+					}
+				};
+
+				HandlerChanged += handlerChanged;
+
+				// Wait up to 5 seconds for handler attachment
+				var timeoutTask = Task.Delay(5000);
+				var completedTask = await Task.WhenAny(tcs.Task, timeoutTask);
+
+				HandlerChanged -= handlerChanged;
+
+				if (completedTask == timeoutTask)
+				{
+					return; // Handler not available
+				}
+			}
+
+			// Execute JavaScript to scroll to top
+			await EvaluateJavaScriptAsync("window.scrollTo(0, 0);");
 		}
 	}
 }

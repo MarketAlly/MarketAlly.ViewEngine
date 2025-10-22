@@ -455,21 +455,6 @@ namespace MarketAlly.Maui.ViewEngine
 			{
 				var url = request.Url?.ToString();
 
-				if (_handler.IsPotentialPdfUrl(url))
-				{
-					// Process PDF in parallel
-					MainThread.BeginInvokeOnMainThread(async () =>
-					{
-					try
-					{
-						await _handler.HandlePotentialPdfUrl(url);
-					}
-					catch (Exception ex)
-					{
-						System.Diagnostics.Debug.WriteLine($"Error in ShouldOverrideUrlLoading: {ex.Message}");
-					}
-					});
-				}
 
 				return false; // Allow default navigation
 			}
@@ -513,6 +498,16 @@ namespace MarketAlly.Maui.ViewEngine
 		{
 			PlatformView.Settings.UserAgentString = !string.IsNullOrEmpty(userAgent) ? userAgent :
 				"Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36";
+		}
+
+		public partial void SetEnableZoom(bool enable)
+		{
+			if (PlatformView?.Settings != null)
+			{
+				PlatformView.Settings.BuiltInZoomControls = enable;
+				PlatformView.Settings.DisplayZoomControls = false; // Hide zoom buttons, keep pinch-to-zoom
+				PlatformView.Settings.SetSupportZoom(enable);
+			}
 		}
 
 		public async partial Task<PageData> ExtractPageDataAsync(bool forceRouteExtraction = false)
@@ -826,7 +821,24 @@ namespace MarketAlly.Maui.ViewEngine
 					if (_handler.IsPotentialPdfUrl(url) ||
 						mimetype?.Contains("pdf", StringComparison.OrdinalIgnoreCase) == true)
 					{
-						await _handler.HandlePotentialPdfUrl(url);
+						// WebView has authenticated - download with its cookies
+						var browserView = (_handler.VirtualView as WebView)?.ParentBrowserView;
+						if (browserView != null && browserView.ShowInlinePdf)
+						{
+							// Get cookies from WebView's session
+							var cookieManager = Android.Webkit.CookieManager.Instance;
+							var cookies = cookieManager?.GetCookie(url);
+
+							// Download and display PDF with authentication
+							await DownloadPdfWithCookies(url, cookies, browserView);
+						}
+						else
+						{
+							// Open with external app
+							var intent = new Intent(Intent.ActionView, Android.Net.Uri.Parse(url));
+							intent.AddFlags(ActivityFlags.NewTask);
+							Platform.CurrentActivity.StartActivity(intent);
+						}
 					}
 					else
 					{
@@ -841,5 +853,66 @@ namespace MarketAlly.Maui.ViewEngine
 				}
 			});
 		}
+
+		private async Task DownloadPdfWithCookies(string url, string cookies, BrowserView browserView)
+		{
+		try
+		{
+			browserView.IsLoading = true;
+
+			using var httpClient = new HttpClient(new HttpClientHandler
+			{
+				AllowAutoRedirect = true,
+				MaxAutomaticRedirections = 10
+			});
+
+			// Add cookies - THE KEY to bypassing arxiv bot check
+			if (!string.IsNullOrEmpty(cookies))
+			{
+				httpClient.DefaultRequestHeaders.Add("Cookie", cookies);
+			}
+
+			httpClient.DefaultRequestHeaders.Add("User-Agent", "Mozilla/5.0 (Linux; Android 10) AppleWebKit/537.36");
+			httpClient.DefaultRequestHeaders.Add("Accept", "application/pdf,application/octet-stream,*/*");
+
+			// Download WITH cookies
+			var pdfData = await httpClient.GetByteArrayAsync(url);
+
+			System.Diagnostics.Debug.WriteLine($"Android: Downloaded {pdfData?.Length ?? 0} bytes WITH COOKIES");
+
+			// Validate
+			if (pdfData != null && pdfData.Length >= 5 &&
+				pdfData[0] == 0x25 && pdfData[1] == 0x50 && pdfData[2] == 0x44 && pdfData[3] == 0x46)
+			{
+				var tempFile = DataSources.PdfTempFileHelper.CreateTempPdfFilePath();
+				await System.IO.File.WriteAllBytesAsync(tempFile, pdfData);
+
+				await MainThread.InvokeOnMainThreadAsync(() =>
+				{
+					var pdfView = browserView.GetType().GetField("_pdfView",
+						System.Reflection.BindingFlags.NonPublic | System.Reflection.BindingFlags.Instance)
+						?.GetValue(browserView) as PdfView;
+					var webView = browserView.GetType().GetField("_webView",
+						System.Reflection.BindingFlags.NonPublic | System.Reflection.BindingFlags.Instance)
+						?.GetValue(browserView) as WebView;
+
+					if (pdfView != null && webView != null)
+					{
+						pdfView.Uri = tempFile;
+						webView.IsVisible = false;
+						pdfView.IsVisible = true;
+					}
+				});
+			}
+
+			browserView.IsLoading = false;
+		}
+		catch (Exception ex)
+		{
+			System.Diagnostics.Debug.WriteLine($"DownloadPdfWithCookies failed: {ex.Message}");
+			browserView.IsLoading = false;
+		}
 	}
+}
+
 }

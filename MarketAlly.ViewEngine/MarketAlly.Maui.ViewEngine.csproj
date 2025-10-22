@@ -30,23 +30,30 @@
   <PropertyGroup>
     <GeneratePackageOnBuild>true</GeneratePackageOnBuild>
     <PackageId>MarketAlly.ViewEngine</PackageId>
-    <Version>1.6.0</Version>
+    <Version>2.0.0</Version>
     <Authors>David H Friedel Jr</Authors>
     <Company>MarketAlly</Company>
     <Product>MarketAlly.Maui.ViewEngine</Product>
 
-    <Title>Advanced .NET MAUI WebView with Content Monitoring</Title>
+    <Title>Advanced .NET MAUI Browser with Inline PDF Viewing and Custom Navigation</Title>
     <Description>
-      Enhanced .NET MAUI WebView control with advanced browser capabilities, real-time content monitoring, and PDF processing. Features include custom user-agent configuration, debounced DOM change detection, on-demand link extraction, ad detection, PDF handling, cookie management, and seamless cross-platform support for Android, iOS, and Windows.
+      Enhanced .NET MAUI browser control with advanced capabilities including seamless inline PDF viewing, custom navigation history with titles and favicons, real-time content monitoring, and intelligent web scraping. Features include hybrid WebView+PdfView architecture, custom navigation history management, favicon extraction, PDF text extraction, custom user-agent configuration, debounced DOM change detection, on-demand link extraction, ad detection, cookie management, and seamless cross-platform support for Android, iOS, and Windows.
 
       Key Features:
+      - NEW BrowserView control: Hybrid WebView+PdfView with seamless switching (v2.0.0)
+      - NEW Inline PDF viewing: Automatically displays PDFs without external apps (v2.0.0)
+      - NEW Custom navigation history: Full history with titles, URLs, timestamps, and favicons (v2.0.0)
+      - NEW History management: GoBack, GoForward, NavigateToItem with searchable history (v2.0.0)
+      - NEW History persistence: Export/Import navigation history as JSON (v2.0.0)
+      - NEW Favicon extraction: Automatic favicon detection and extraction (v2.0.0)
+      - Embedded PDF renderer: No external dependencies, pure .NET MAUI implementation (v2.0.0)
       - Custom User-Agent and browser detection bypass
       - Real-time content monitoring with intelligent debouncing (1-second delay)
-      - On-demand route extraction - Zero performance impact by default (NEW in v1.1.1)
+      - On-demand route extraction - Zero performance impact by default
       - Automatic PDF download handling and text extraction
-      - Intelligent ad detection and filtering with scoring system (NEW in v1.1.1)
+      - Intelligent ad detection and filtering with scoring system
       - Link extraction with Routes (all page links) and BodyRoutes (content-only links)
-      - Configurable route limits (MaxRoutes) for performance optimization (NEW in v1.1.1)
+      - Configurable route limits (MaxRoutes) for performance optimization
       - Full cookie and storage support
       - WebRTC and WebGL compatibility
       - Cross-platform implementation (Android, iOS, Windows)
@@ -54,7 +61,7 @@
       - JavaScript injection support
       - Production-ready with optimized performance
 
-      Perfect for applications requiring advanced web content interaction, monitoring, and processing.
+      Perfect for applications requiring advanced web browsing, PDF viewing, navigation management, content interaction, monitoring, and processing.
     </Description>
 
     <Copyright>Copyright © 2025 MarketAlly</Copyright>
@@ -65,25 +72,55 @@
     <RepositoryUrl>https://github.com/MarketAlly/MarketAlly.ViewEngine</RepositoryUrl>
     <RepositoryType>git</RepositoryType>
 
-    <PackageTags>webview dotnet-maui maui custom-control browser pdf-handling content-monitoring dom-monitoring user-agent cookie-management webrtc webgl android ios windows cross-platform web-scraping content-extraction debouncing link-extraction ad-detection on-demand performance-optimization</PackageTags>
+    <PackageTags>webview dotnet-maui maui custom-control browser pdf-viewer pdf-handling inline-pdf navigation-history history-management favicon content-monitoring dom-monitoring user-agent cookie-management webrtc webgl android ios windows cross-platform web-scraping content-extraction debouncing link-extraction ad-detection on-demand performance-optimization browserview hybrid-control</PackageTags>
 
     <PackageReleaseNotes>
-      Version 1.2.7 (Critical Release Mode XAML Initialization Fix):
-      - CRITICAL FIX: Fixed TargetInvocationException during XAML initialization in Release mode
-      - FIX: Moved Mapper initialization to static constructor to ensure proper initialization order
-      - ENHANCEMENT: Conservative linker settings (SdkOnly) applied automatically to consuming apps
-      - ENHANCEMENT: MultiDex enabled automatically for Release builds
-      - PRODUCTION READY: Complete fix for handler initialization crashes
+      Version 2.0.0 (MAJOR UPDATE - Inline PDF Viewing and Custom Navigation History):
 
-      This update is ESSENTIAL for all users - fixes the root cause of Release mode crashes.
+      🎉 NEW FEATURES:
+      - MAJOR: BrowserView control - Hybrid WebView+PdfView that seamlessly switches between web and PDF content
+      - MAJOR: Inline PDF viewing - Automatically displays PDFs within the control without external apps
+      - MAJOR: Custom navigation history - Full navigation management with titles, URLs, timestamps, and favicons
+      - MAJOR: Navigation methods - GoBackInHistoryAsync, GoForwardInHistoryAsync, NavigateToHistoryItemAsync
+      - MAJOR: History persistence - ExportHistoryJson/ImportHistoryJson for saving/restoring browsing sessions
+      - MAJOR: Favicon extraction - Automatic detection and extraction of website favicons (with fallback to favicon.ico)
+      - MAJOR: History search - SearchHistory method for finding pages by title or URL
+      - NEW: Embedded PDF renderer - No external dependencies, integrated Vitvov.Maui.PDFView source
+      - NEW: NavigationHistory ObservableCollection - Real-time bindable history for UI
+      - NEW: CanGoBackInHistory and CanGoForwardInHistory properties for UI button states
+      - NEW: NavigatingToHistoryItem event for tracking navigation actions
+      - NEW: ShowInlinePdf property to control PDF display behavior
+
+      🔧 IMPROVEMENTS:
+      - Navigation history completely replaces built-in MAUI WebView navigation (no more limited history)
+      - Smart duplicate detection prevents consecutive identical entries in history
+      - Configurable MaxHistoryItems to control memory usage
+      - PDF content is cached for faster re-navigation
+      - FaviconUrl now included in PageData for all page loads
+      - History items include thumbnails when EnableThumbnailCapture is true
+
+      📦 ARCHITECTURE:
+      - BrowserView is the new recommended control (WebView still available for backward compatibility)
+      - Internal PdfView component for seamless PDF rendering
+      - Unified event model - PageDataChanged works for both web and PDF content
+      - Clean separation between web and PDF modes with automatic switching
+
+      ⚠️ BREAKING CHANGES:
+      - None! Existing WebView code continues to work
+      - New BrowserView control is opt-in
+      - Recommended migration: Replace WebView with BrowserView for enhanced features
+
+      🔄 MIGRATION GUIDE:
+      Old: &lt;marketally:WebView x:Name="webView" /&gt;
+      New: &lt;marketally:BrowserView x:Name="browserView" /&gt;
+
+      All existing properties and methods are supported!
 
       Previous versions:
+      - 1.2.7: Critical Release mode XAML initialization fix
       - 1.2.6: Async void fixes, ProGuard configuration, PixelCopy API
-      - 1.2.5: Initial async void fix (incomplete)
-      - 1.2.4: Thumbnail capture functionality added
       - 1.1.4: URL normalization and domain exclusion
-      - 1.1.1-1.1.3: Performance optimization, on-demand route extraction, ad detection
-      - 1.1.0: Stable production release with debouncing and enhanced link extraction
+      - 1.1.0-1.1.3: Performance optimization, route extraction, ad detection
     </PackageReleaseNotes>
 
     <!-- Required dependencies -->
@@ -100,6 +137,11 @@
 	<ItemGroup>
 		<PackageReference Include="Microsoft.Maui.Controls" Version="9.0.40" />
     <PackageReference Include="itext7" Version="9.1.0" />
+	</ItemGroup>
+
+	<!-- Android-specific resources for PDF viewer -->
+	<ItemGroup Condition="'$(TargetFramework)' == 'net9.0-android'">
+		<AndroidResource Include="Platforms\Android\PdfView\Resources\layout\card_view.xml" />
 	</ItemGroup>
 
 	<ItemGroup>

@@ -2,7 +2,13 @@
   "permissions": {
     "allow": [
       "Bash(cat:*)",
-      "WebFetch(domain:arxiv.org)"
+      "WebFetch(domain:arxiv.org)",
+      "Bash(cp:*)",
+      "Bash(mkdir:*)",
+      "Bash(find:*)",
+      "Bash(xargs sed:*)",
+      "Bash(dotnet build:*)",
+      "Bash(git checkout:*)"
     ],
     "deny": [],
     "ask": []
