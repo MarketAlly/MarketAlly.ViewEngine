@@ -189,7 +189,7 @@ namespace MarketAlly.Maui.ViewEngine
 			await InjectJavaScriptAsync(script);
 		}
 
-		public async Task HandlePdfDownload(byte[] pdfData, string url)
+		public async Task<string> HandlePdfDownload(byte[] pdfData, string url)
 		{
 			try
 			{
@@ -202,21 +202,16 @@ namespace MarketAlly.Maui.ViewEngine
 					{
 						var page = pdfDocument.GetPage(i);
 						text.Append(PdfTextExtractor.GetTextFromPage(page, new LocationTextExtractionStrategy()));
+						text.Append("\n"); // Add newline between pages
 					}
 
-					var pageData = new PageData
-					{
-						Title = "PDF Document",
-						Body = text.ToString(),
-						Url = url,
-						MetaDescription = $"PDF document with {pdfDocument.GetNumberOfPages()} pages"
-					};
-
-					PageDataChanged?.Invoke(this, pageData);
+					return text.ToString();
 				}
 			}
 			catch (Exception ex)
 			{
+				System.Diagnostics.Debug.WriteLine($"Error extracting PDF text: {ex.Message}");
+				return string.Empty;
 			}
 		}
 

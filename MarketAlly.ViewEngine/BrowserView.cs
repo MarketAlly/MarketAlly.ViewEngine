@@ -587,7 +587,7 @@ namespace MarketAlly.Maui.ViewEngine
 				{
 					try
 					{
-						await handler.HandlePdfDownload(_currentPdfData, url);
+						extractedText = await handler.HandlePdfDownload(_currentPdfData, url);
 					}
 					catch (Exception ex)
 					{
@@ -683,6 +683,11 @@ namespace MarketAlly.Maui.ViewEngine
 					CurrentHistoryIndex--;
 				}
 			}
+		}
+
+		internal void RaisePageDataChanged(PageData pageData)
+		{
+			PageDataChanged?.Invoke(this, pageData);
 		}
 
 		#region Navigation Methods

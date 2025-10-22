@@ -925,6 +925,24 @@ namespace MarketAlly.Maui.ViewEngine
 				var tempFile = DataSources.PdfTempFileHelper.CreateTempPdfFilePath();
 				await System.IO.File.WriteAllBytesAsync(tempFile, pdfData);
 
+				// Extract text from PDF
+				string extractedText = string.Empty;
+				try
+				{
+					extractedText = await _handler.HandlePdfDownload(pdfData, url);
+				}
+				catch (Exception ex)
+				{
+					System.Diagnostics.Debug.WriteLine($"Android: Failed to extract PDF text: {ex.Message}");
+				}
+
+				var pdfTitle = System.IO.Path.GetFileName(url);
+				if (string.IsNullOrWhiteSpace(pdfTitle))
+				{
+					var uri = new Uri(url);
+					pdfTitle = uri.Segments.Length > 0 ? uri.Segments[uri.Segments.Length - 1] : "PDF Document";
+				}
+
 				await MainThread.InvokeOnMainThreadAsync(() =>
 				{
 					var pdfView = browserView.GetType().GetField("_pdfView",
@@ -942,17 +960,10 @@ namespace MarketAlly.Maui.ViewEngine
 					}
 
 					// Add to navigation history - critical for back button functionality
-					var pdfTitle = System.IO.Path.GetFileName(url);
-					if (string.IsNullOrWhiteSpace(pdfTitle))
-					{
-						var uri = new Uri(url);
-						pdfTitle = uri.Segments.Length > 0 ? uri.Segments[uri.Segments.Length - 1] : "PDF Document";
-					}
-
 					var pageData = new PageData
 					{
 						Title = pdfTitle,
-						Body = string.Empty,
+						Body = extractedText,
 						Url = url,
 						MetaDescription = "PDF Document"
 					};
@@ -974,12 +985,8 @@ namespace MarketAlly.Maui.ViewEngine
 					}
 
 					// Fire PageDataChanged event
-					var pageDataChangedEvent = browserView.GetType().GetEvent("PageDataChanged");
-					var pageDataChangedDelegate = pageDataChangedEvent?.GetRaiseMethod(true);
-					if (pageDataChangedDelegate != null)
-					{
-						pageDataChangedDelegate.Invoke(browserView, new object[] { browserView, pageData });
-					}
+					System.Diagnostics.Debug.WriteLine($"Android: Firing PageDataChanged - Title={pdfTitle}, BodyLength={extractedText.Length}");
+					browserView.RaisePageDataChanged(pageData);
 
 					// Update PDF actions panel visibility
 					var updatePdfActionsPanelMethod = browserView.GetType().GetMethod("UpdatePdfActionsPanelVisibility",
