@@ -17,7 +17,7 @@ namespace MarketAlly.Maui.ViewEngine
 	[Preserve(AllMembers = true)]
 	public partial class WebViewHandler : Microsoft.Maui.Handlers.WebViewHandler
 	{
-		private PageRawData _cachedRawData;
+		private PageRawData? _cachedRawData;
 
 		public static new IPropertyMapper<WebView, WebViewHandler> Mapper { get; set; }
 

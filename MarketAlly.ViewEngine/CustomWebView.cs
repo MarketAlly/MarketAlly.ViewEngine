@@ -38,7 +38,7 @@ namespace MarketAlly.Maui.ViewEngine
 		private int _clicksWithoutNavigation = 0;
 		private bool _autoDetectNavigationIssues = true;
 
-		public static readonly BindableProperty UserAgentProperty =
+		public new static readonly BindableProperty UserAgentProperty =
 			BindableProperty.Create(nameof(UserAgent), typeof(string), typeof(WebView), default(string));
 
 
@@ -54,7 +54,7 @@ namespace MarketAlly.Maui.ViewEngine
 			BindableProperty.Create(nameof(NormalizeRoutes), typeof(bool), typeof(WebView), true);
 
 		public static readonly BindableProperty ExcludeDomainsProperty =
-			BindableProperty.Create(nameof(ExcludeDomains), typeof(List<string>), typeof(WebView), null);
+			BindableProperty.Create(nameof(ExcludeDomains), typeof(List<string>), typeof(WebView), default(List<string>));
 
 		public static readonly BindableProperty EnableAdDetectionProperty =
 			BindableProperty.Create(nameof(EnableAdDetection), typeof(bool), typeof(WebView), false);
@@ -84,7 +84,7 @@ namespace MarketAlly.Maui.ViewEngine
 			BindableProperty.Create(nameof(EnableZoom), typeof(bool), typeof(WebView), true);
 
 		public static readonly BindableProperty PdfUrlPatternsProperty =
-			BindableProperty.Create(nameof(PdfUrlPatterns), typeof(string[]), typeof(WebView), null);
+			BindableProperty.Create(nameof(PdfUrlPatterns), typeof(string[]), typeof(WebView), default(string[]));
 
 		public WebView()
 		{
@@ -261,7 +261,7 @@ namespace MarketAlly.Maui.ViewEngine
 			PageDataChanged?.Invoke(this, pageData);
 		}
 
-		public string UserAgent
+		public new string UserAgent
 		{
 			get => (string)GetValue(UserAgentProperty);
 			set => SetValue(UserAgentProperty, value);

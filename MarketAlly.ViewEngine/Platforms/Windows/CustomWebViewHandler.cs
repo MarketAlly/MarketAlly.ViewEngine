@@ -12,12 +12,12 @@ namespace MarketAlly.Maui.ViewEngine
 {
 	public partial class WebViewHandler
 	{
-		private Windows.Foundation.TypedEventHandler<CoreWebView2, CoreWebView2NewWindowRequestedEventArgs> _newWindowHandler;
-		private Windows.Foundation.TypedEventHandler<CoreWebView2, CoreWebView2DownloadStartingEventArgs> _downloadHandler;
-		private Windows.Foundation.TypedEventHandler<CoreWebView2, CoreWebView2SourceChangedEventArgs> _sourceChangedHandler;
-		private Windows.Foundation.TypedEventHandler<CoreWebView2, CoreWebView2WebMessageReceivedEventArgs> _messageReceivedHandler;
-		private Windows.Foundation.TypedEventHandler<CoreWebView2, CoreWebView2NavigationStartingEventArgs> _navigationStartingHandler;
-		private Windows.Foundation.TypedEventHandler<CoreWebView2, CoreWebView2NavigationCompletedEventArgs> _navigationCompletedHandler;
+		private Windows.Foundation.TypedEventHandler<CoreWebView2, CoreWebView2NewWindowRequestedEventArgs>? _newWindowHandler;
+		private Windows.Foundation.TypedEventHandler<CoreWebView2, CoreWebView2DownloadStartingEventArgs>? _downloadHandler;
+		private Windows.Foundation.TypedEventHandler<CoreWebView2, CoreWebView2SourceChangedEventArgs>? _sourceChangedHandler;
+		private Windows.Foundation.TypedEventHandler<CoreWebView2, CoreWebView2WebMessageReceivedEventArgs>? _messageReceivedHandler;
+		private Windows.Foundation.TypedEventHandler<CoreWebView2, CoreWebView2NavigationStartingEventArgs>? _navigationStartingHandler;
+		private Windows.Foundation.TypedEventHandler<CoreWebView2, CoreWebView2NavigationCompletedEventArgs>? _navigationCompletedHandler;
 
 		private const string ContentMonitoringScript = @"
             (function() {

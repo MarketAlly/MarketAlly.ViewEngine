@@ -99,7 +99,7 @@ namespace MarketAlly.Maui.ViewEngine
 			BindableProperty.Create(nameof(NormalizeRoutes), typeof(bool), typeof(BrowserView), true);
 
 		public static readonly BindableProperty ExcludeDomainsProperty =
-			BindableProperty.Create(nameof(ExcludeDomains), typeof(List<string>), typeof(BrowserView), null);
+			BindableProperty.Create(nameof(ExcludeDomains), typeof(List<string>), typeof(BrowserView), default(List<string>));
 
 		public static readonly BindableProperty EnableAdDetectionProperty =
 			BindableProperty.Create(nameof(EnableAdDetection), typeof(bool), typeof(BrowserView), false);
@@ -143,7 +143,7 @@ namespace MarketAlly.Maui.ViewEngine
 			BindableProperty.Create(nameof(ShowLoadingProgress), typeof(bool), typeof(BrowserView), true);
 
 		public static readonly BindableProperty PdfUrlPatternsProperty =
-			BindableProperty.Create(nameof(PdfUrlPatterns), typeof(string[]), typeof(BrowserView), null);
+			BindableProperty.Create(nameof(PdfUrlPatterns), typeof(string[]), typeof(BrowserView), default(string[]));
 
 		#endregion
 

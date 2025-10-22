@@ -9,8 +9,8 @@ namespace MarketAlly.Maui.ViewEngine
 {
 	public partial class WebViewHandler
 	{
-		private CustomNavigationDelegate _navigationDelegate;
-		private CustomScriptMessageHandler _scriptMessageHandler;
+		private CustomNavigationDelegate? _navigationDelegate;
+		private CustomScriptMessageHandler? _scriptMessageHandler;
 
 		private const string ContentMonitoringScript = @"
             (function() {

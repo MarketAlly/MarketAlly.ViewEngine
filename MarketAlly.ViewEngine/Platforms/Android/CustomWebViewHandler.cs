@@ -11,9 +11,9 @@ namespace MarketAlly.Maui.ViewEngine
 {
 	public partial class WebViewHandler
 	{
-		private WebViewClient _webViewClient;
-		private CustomDownloadListener _downloadListener;
-		private WebViewJavaScriptInterface _jsInterface;
+		private WebViewClient? _webViewClient;
+		private CustomDownloadListener? _downloadListener;
+		private WebViewJavaScriptInterface? _jsInterface;
 
 		private const string ContentMonitoringScript = @"
         (function() {
